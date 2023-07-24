@@ -14,7 +14,7 @@ class SupportedModels(Enum):
 class OrcaTranslator:
 
     def __init__(self, dataset='Open-Orca/OpenOrca'):
-        self.dataset = load_dataset(dataset)
+        self.dataset = load_dataset(dataset)['train']
         self.instruction2answer: dict[str, str] = {}
 
     def translate_instructions(self, num_lines: int = None) -> None:
