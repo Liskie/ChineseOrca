@@ -46,7 +46,7 @@ class OrcaTranslator:
                 raise ValueError(f'Invalid model selected. Supported models are {list(SupportedModels)}.')
 
         response = requests.post(request_ip, json={
-            "model": model,
+            "model": str(model),
             "messages": [
                 {
                     "role": "user",
