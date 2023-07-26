@@ -115,7 +115,11 @@ class OrcaTranslator:
         logger.info(f'Process {os.getpid()} is translating question for datapoint {datapoint.id}.')
         translation = self.request_model(f'Please translate the following text into simplified Chinese:\n'
                                          f'{datapoint.en.question}', model)
-        datapoint.zh.question = translation
+        datapoint.zh = LocaleData(
+            system_prompt='',
+            question=translation,
+            response=''
+        )
         return datapoint
 
     def generate_answers(self, num_lines: int = None, num_workers: int = 1) -> None:
@@ -150,7 +154,7 @@ class OrcaTranslator:
         with jsonlines.open(output_path, 'w') as writer:
             writer.write_all(self.id2datapoint)
 
-    @retry(wait=wait_random_exponential(min=1, max=10), stop=stop_after_attempt(1))
+    @retry(wait=wait_random_exponential(min=1, max=10), stop=stop_after_attempt(3))
     def request_model(self, prompt: str, model=SupportedModels.GPT4) -> str:
         match model:
             case SupportedModels.GPT4:
