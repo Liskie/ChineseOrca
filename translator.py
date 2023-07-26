@@ -16,6 +16,11 @@ class SupportedModels(Enum):
     ChatGPT = "gpt-3.5-turbo-0613"
 
 
+class SupportedDatasetTypes(Enum):
+    Huggingface = 'huggingface'
+    Local = 'local'
+
+
 @dataclass
 class LocaleData:
     system_prompt: str
@@ -32,17 +37,27 @@ class Datapoint:
 
 class OrcaTranslator:
 
-    def __init__(self, dataset='Open-Orca/OpenOrca'):
-        self.dataset = load_dataset(dataset)['train']
+    def __init__(self, dataset_type=SupportedDatasetTypes.Huggingface):
+        match dataset_type:
+            case SupportedDatasetTypes.Huggingface:
+                self.dataset = load_dataset('Open-Orca/OpenOrca')['train']
+            case SupportedDatasetTypes.Local:
+                self.dataset = load_dataset("parquet", data_files={
+                    'GPT4': '/Users/Liskie/Projects/PycharmProjects/OpenOrca/1M-GPT4-Augmented.parquet',
+                    'ChatGPT': '/Users/Liskie/Projects/PycharmProjects/OpenOrca/3_5M-GPT3_5-Augmented.parquet'
+                })['GPT4']
+            case _:
+                raise ValueError(f'Invalid dataset type selected. Supported types are {list(SupportedDatasetTypes)}')
+
         self.id2datapoint: dict[str, Datapoint] = {}
 
         for line in self.dataset:
             self.id2datapoint[line['id']] = Datapoint(
                 id=line['id'],
                 en=LocaleData(
-                    system_prompt=line['en']['system_prompt'],
-                    question=line['en']['question'],
-                    response=line['en']['response']
+                    system_prompt=line['system_prompt'],
+                    question=line['question'],
+                    response=line['response']
                 )
             )
 
@@ -52,13 +67,13 @@ class OrcaTranslator:
         if not os.path.exists(os.path.dirname(directory)):
             os.makedirs(os.path.dirname(directory))
 
-    def translate_instructions(self, num_lines: int = None, num_workers: int = 1) -> None:
+    def translate_instructions(self, num_lines: int = None, num_workers: int = 4) -> None:
         # Validate num_lines
         if num_lines and num_lines > len(self.dataset):
             raise ValueError(f'num_lines={num_lines} is larger than the length of the dataset ({len(self.dataset)}).')
 
         # Distribute the work to multiple processes
-        inputs = self.id2datapoint.values()[:num_lines] if num_lines else self.id2datapoint.values()
+        inputs = list(self.id2datapoint.values())[:num_lines] if num_lines else list(self.id2datapoint.values())
         with Pool(num_workers) as pool:
             modified_datapoints = tqdm(pool.imap(self.translate_question, inputs),
                                        total=len(inputs),
@@ -83,7 +98,7 @@ class OrcaTranslator:
             raise ValueError(f'num_lines={num_lines} is larger than the length of the dataset ({len(self.dataset)}).')
 
         # Distribute the work to multiple processes
-        inputs = self.id2datapoint.values()[:num_lines] if num_lines else self.id2datapoint.values()
+        inputs = list(self.id2datapoint.values())[:num_lines] if num_lines else list(self.id2datapoint.values())
         with Pool(num_workers) as pool:
             modified_datapoints = tqdm(pool.imap(self.ask_question, inputs),
                                        total=len(inputs),
