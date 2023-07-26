@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 from dataclasses import dataclass
 from enum import Enum
@@ -9,6 +10,20 @@ from jsonlines import jsonlines
 from tenacity import retry, wait_random_exponential, stop_after_attempt
 from datasets import load_dataset
 from tqdm import tqdm
+
+
+def dir_check(directory: str) -> None:
+    # Check if the output directory exists
+    if not os.path.exists(os.path.dirname(directory)):
+        os.makedirs(os.path.dirname(directory))
+
+
+log_path = 'logs/translator.log'
+dir_check(log_path)
+logging.basicConfig(filename=log_path,
+                    level=logging.INFO,
+                    format='[%(asctime)s] [%(levelname)s] %(message)s')
+logger = logging.getLogger()
 
 
 class SupportedModels(Enum):
@@ -38,6 +53,7 @@ class Datapoint:
 class OrcaTranslator:
 
     def __init__(self, dataset_type=SupportedDatasetTypes.Huggingface):
+        logger.info(f'Loading dataset from {dataset_type}.')
         match dataset_type:
             case SupportedDatasetTypes.Huggingface:
                 self.dataset = load_dataset('Open-Orca/OpenOrca')['train']
@@ -48,9 +64,10 @@ class OrcaTranslator:
                 })['GPT4']
             case _:
                 raise ValueError(f'Invalid dataset type selected. Supported types are {list(SupportedDatasetTypes)}')
+        logger.info(f'Loaded dataset with {len(self.dataset)} lines.')
 
+        logger.info(f'Creating datapoints.')
         self.id2datapoint: dict[str, Datapoint] = {}
-
         for line in self.dataset:
             self.id2datapoint[line['id']] = Datapoint(
                 id=line['id'],
@@ -60,12 +77,7 @@ class OrcaTranslator:
                     response=line['response']
                 )
             )
-
-    @staticmethod
-    def dir_check(directory: str) -> None:
-        # Check if the output directory exists
-        if not os.path.exists(os.path.dirname(directory)):
-            os.makedirs(os.path.dirname(directory))
+        logger.info(f'Created {len(self.id2datapoint)} datapoints.')
 
     def translate_instructions(self, num_lines: int = None, num_workers: int = 4) -> None:
         # Validate num_lines
@@ -73,6 +85,7 @@ class OrcaTranslator:
             raise ValueError(f'num_lines={num_lines} is larger than the length of the dataset ({len(self.dataset)}).')
 
         # Distribute the work to multiple processes
+        logger.info(f'Distributing work to {num_workers} workers.')
         inputs = list(self.id2datapoint.values())[:num_lines] if num_lines else list(self.id2datapoint.values())
         with Pool(num_workers) as pool:
             modified_datapoints = tqdm(pool.imap(self.translate_question, inputs),
@@ -84,9 +97,13 @@ class OrcaTranslator:
             self.id2datapoint[datapoint.id] = datapoint
 
         # Dump the datapoints
-        self.dump_datapoints('output/datapoints_translation_only.jsonl')
+        dump_path = 'output/datapoints_translation_only.jsonl'
+        logger.info(f'Translation completed. Dumping datapoints into {dump_path}')
+        self.dump_datapoints(dump_path)
+        logger.info(f'Datapoints dumped.')
 
     def translate_question(self, datapoint: Datapoint, model=SupportedModels.GPT4) -> Datapoint:
+        logger.info(f'Process {os.getpid()} is translating question for datapoint {datapoint.id}.')
         translation = self.request_model(f'Please translate the following text into simplified Chinese:\n'
                                          f'{datapoint.en.question}', model)
         datapoint.zh.question = translation
@@ -117,7 +134,7 @@ class OrcaTranslator:
         return datapoint
 
     def dump_datapoints(self, output_path: str = 'output/datapoints.jsonl') -> None:
-        self.dir_check(output_path)
+        dir_check(output_path)
         with jsonlines.open(output_path, 'w') as writer:
             writer.write_all(self.id2datapoint)
 
