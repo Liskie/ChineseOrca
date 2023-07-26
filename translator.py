@@ -92,7 +92,9 @@ class OrcaTranslator:
 
         # Distribute the work to multiple processes
         logger.info(f'Distributing work to {num_workers} workers.')
-        inputs = list(self.id2datapoint.values())[:num_lines] if num_lines else list(self.id2datapoint.values())
+        inputs = [(datapoint, SupportedModels.GPT4)
+                  for datapoint in (list(self.id2datapoint.values())[:num_lines] if num_lines
+                                    else list(self.id2datapoint.values()))]
         with Pool(num_workers) as pool:
             modified_datapoints = tqdm(pool.imap(self.translate_question, inputs),
                                        total=len(inputs),
@@ -108,7 +110,8 @@ class OrcaTranslator:
         self.dump_datapoints(dump_path)
         logger.info(f'Datapoints dumped.')
 
-    def translate_question(self, datapoint: Datapoint, model=SupportedModels.GPT4) -> Datapoint:
+    def translate_question(self, args) -> Datapoint:
+        datapoint, model = args
         logger.info(f'Process {os.getpid()} is translating question for datapoint {datapoint.id}.')
         translation = self.request_model(f'Please translate the following text into simplified Chinese:\n'
                                          f'{datapoint.en.question}', model)
@@ -121,9 +124,11 @@ class OrcaTranslator:
             raise ValueError(f'num_lines={num_lines} is larger than the length of the dataset ({len(self.dataset)}).')
 
         # Distribute the work to multiple processes
-        inputs = list(self.id2datapoint.values())[:num_lines] if num_lines else list(self.id2datapoint.values())
+        inputs = [(datapoint, SupportedModels.GPT4)
+                  for datapoint in (list(self.id2datapoint.values())[:num_lines] if num_lines
+                                    else list(self.id2datapoint.values()))]
         with Pool(num_workers) as pool:
-            modified_datapoints = tqdm(pool.imap(self.ask_question, inputs),
+            modified_datapoints = tqdm(pool.istarmap(self.ask_question, inputs),
                                        total=len(inputs),
                                        desc='Generation responses: ')
 
@@ -134,7 +139,8 @@ class OrcaTranslator:
         # Dump the datapoints
         self.dump_datapoints('output/datapoints.jsonl')
 
-    def ask_question(self, datapoint: Datapoint, model=SupportedModels.GPT4) -> Datapoint:
+    def ask_question(self, args) -> Datapoint:
+        datapoint, model = args
         response = self.request_model(f'Please answer the following question:\n{datapoint.zh.question}', model)
         datapoint.zh.response = response
         return datapoint
