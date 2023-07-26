@@ -1,6 +1,11 @@
+import json
+import os
+from dataclasses import dataclass
 from enum import Enum
+from multiprocessing import Pool
 
 import requests
+from jsonlines import jsonlines
 from tenacity import retry, wait_random_exponential, stop_after_attempt
 from datasets import load_dataset
 from tqdm import tqdm
@@ -11,29 +16,95 @@ class SupportedModels(Enum):
     ChatGPT = "gpt-3.5-turbo-0613"
 
 
+@dataclass
+class LocaleData:
+    system_prompt: str
+    question: str
+    response: str
+
+
+@dataclass
+class Datapoint:
+    id: str
+    en: LocaleData = None
+    zh: LocaleData = None
+
+
 class OrcaTranslator:
 
     def __init__(self, dataset='Open-Orca/OpenOrca'):
         self.dataset = load_dataset(dataset)['train']
-        self.instruction2answer: dict[str, str] = {}
+        self.id2datapoint: dict[str, Datapoint] = {}
 
-    def translate_instructions(self, num_lines: int = None) -> None:
-        for i, line in tqdm(enumerate(self.dataset)):
-            if num_lines and i >= num_lines:
-                break
-            self.instruction2answer[self.translate_text(line['question'])] = ''
+        for line in self.dataset:
+            self.id2datapoint[line['id']] = Datapoint(
+                id=line['id'],
+                en=LocaleData(
+                    system_prompt=line['en']['system_prompt'],
+                    question=line['en']['question'],
+                    response=line['en']['response']
+                )
+            )
 
-    def generate_answers(self, num_lines: int = None) -> None:
-        for i, instruction in tqdm(enumerate(self.instruction2answer.keys())):
-            if num_lines and i >= num_lines:
-                break
-            self.instruction2answer[instruction] = self.ask_question(instruction)
+    @staticmethod
+    def dir_check(directory: str) -> None:
+        # Check if the output directory exists
+        if not os.path.exists(os.path.dirname(directory)):
+            os.makedirs(os.path.dirname(directory))
 
-    def translate_text(self, text: str, model=SupportedModels.GPT4) -> str:
-        return self.request_model(f'Please translate the following text into simplified Chinese:\n{text}', model)
+    def translate_instructions(self, num_lines: int = None, num_workers: int = 1) -> None:
+        # Validate num_lines
+        if num_lines and num_lines > len(self.dataset):
+            raise ValueError(f'num_lines={num_lines} is larger than the length of the dataset ({len(self.dataset)}).')
 
-    def ask_question(self, question: str, model=SupportedModels.GPT4) -> str:
-        return self.request_model(f'Please answer the following question:\n{question}', model)
+        # Distribute the work to multiple processes
+        inputs = self.id2datapoint.values()[:num_lines] if num_lines else self.id2datapoint.values()
+        with Pool(num_workers) as pool:
+            modified_datapoints = tqdm(pool.imap(self.translate_question, inputs),
+                                       total=len(inputs),
+                                       desc='Translating instructions: ')
+
+        # Update the datapoints
+        for datapoint in modified_datapoints:
+            self.id2datapoint[datapoint.id] = datapoint
+
+        # Dump the datapoints
+        self.dump_datapoints('output/datapoints_translation_only.jsonl')
+
+    def translate_question(self, datapoint: Datapoint, model=SupportedModels.GPT4) -> Datapoint:
+        translation = self.request_model(f'Please translate the following text into simplified Chinese:\n'
+                                         f'{datapoint.en.question}', model)
+        datapoint.zh.question = translation
+        return datapoint
+
+    def generate_answers(self, num_lines: int = None, num_workers: int = 1) -> None:
+        # Validate num_lines
+        if num_lines and num_lines > len(self.dataset):
+            raise ValueError(f'num_lines={num_lines} is larger than the length of the dataset ({len(self.dataset)}).')
+
+        # Distribute the work to multiple processes
+        inputs = self.id2datapoint.values()[:num_lines] if num_lines else self.id2datapoint.values()
+        with Pool(num_workers) as pool:
+            modified_datapoints = tqdm(pool.imap(self.ask_question, inputs),
+                                       total=len(inputs),
+                                       desc='Generation responses: ')
+
+        # Update the datapoints
+        for datapoint in modified_datapoints:
+            self.id2datapoint[datapoint.id] = datapoint
+
+        # Dump the datapoints
+        self.dump_datapoints('output/datapoints.jsonl')
+
+    def ask_question(self, datapoint: Datapoint, model=SupportedModels.GPT4) -> Datapoint:
+        response = self.request_model(f'Please answer the following question:\n{datapoint.zh.question}', model)
+        datapoint.zh.response = response
+        return datapoint
+
+    def dump_datapoints(self, output_path: str = 'output/datapoints.jsonl') -> None:
+        self.dir_check(output_path)
+        with jsonlines.open(output_path, 'w') as writer:
+            writer.write_all(self.id2datapoint)
 
     @retry(wait=wait_random_exponential(min=1, max=10), stop=stop_after_attempt(1))
     def request_model(self, prompt: str, model=SupportedModels.GPT4) -> str:
@@ -59,7 +130,6 @@ class OrcaTranslator:
             "presence_penalty": 0,
             "frequency_penalty": 0
         }).json()
-        # print(json.dumps(response, indent=4, ensure_ascii=False))
+        print(json.dumps(response, indent=4, ensure_ascii=False))
         text = response["choices"][0]["message"]["content"].strip()
         return text
-
