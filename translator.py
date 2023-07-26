@@ -33,7 +33,8 @@ class SupportedModels(Enum):
 
 class SupportedDatasetTypes(Enum):
     Huggingface = 'huggingface'
-    Local = 'local'
+    LismbpLocal = 'local'
+    HPCLocal = 'hpc_local'
 
 
 @dataclass
@@ -57,10 +58,15 @@ class OrcaTranslator:
         match dataset_type:
             case SupportedDatasetTypes.Huggingface:
                 self.dataset = load_dataset('Open-Orca/OpenOrca')['train']
-            case SupportedDatasetTypes.Local:
+            case SupportedDatasetTypes.LismbpLocal:
                 self.dataset = load_dataset("parquet", data_files={
                     'GPT4': '/Users/Liskie/Projects/PycharmProjects/OpenOrca/1M-GPT4-Augmented.parquet',
                     'ChatGPT': '/Users/Liskie/Projects/PycharmProjects/OpenOrca/3_5M-GPT3_5-Augmented.parquet'
+                })['GPT4']
+            case SupportedDatasetTypes.HPCLocal:
+                self.dataset = load_dataset("parquet", data_files={
+                    'GPT4': '/home/sytl8692/lispace/datasets/OpenOrca/1M-GPT4-Augmented.parquet',
+                    'ChatGPT': '/home/sytl8692/lispace/datasets/OpenOrca/3_5M-GPT3_5-Augmented.parquet'
                 })['GPT4']
             case _:
                 raise ValueError(f'Invalid dataset type selected. Supported types are {list(SupportedDatasetTypes)}')
