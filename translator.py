@@ -152,9 +152,9 @@ class OrcaTranslator:
             self.load_dataset(dataset_type)
             self.generate_datapoints()
 
-    @property
-    def datapoints(self):
-        return self.load_datapoints(self.datapoint_vanilla_file)
+    # @property
+    # def datapoints(self):
+    #     return self.load_datapoints(self.datapoint_vanilla_file)
 
     def load_datapoints(self, input_path: str) -> Generator[Datapoint, None, None]:
         logger.info(f'{self.num_datapoints_to_process} out of {self.num_datapoints_total} datapoints will be loaded '
@@ -186,9 +186,9 @@ class OrcaTranslator:
 
     def generate_datapoints(self):
         logger.info(f'Generating datapoints.')
-        datapoints: dict[str, Datapoint] = {}
+        datapoints: list[Datapoint] = []
         for line in tqdm(self.dataset, desc='Generating datapoints: '):
-            datapoints[line['id']] = Datapoint(
+            datapoints.append(Datapoint(
                 id=line['id'],
                 en=LocaleData(
                     system_prompt=line['system_prompt'],
@@ -200,10 +200,11 @@ class OrcaTranslator:
                     question='',
                     response=''
                 )
-            )
-        dump_path = 'output/datapoints_vanilla.jsonl'
-        logger.info(f'Generated {len(datapoints)} datapoints. Dumping datapoints into {dump_path}.')
-        # self.dump_datapoints(dump_path)
+            ))
+        logger.info(f'Generated {len(datapoints)} datapoints. Dumping datapoints into {self.datapoint_vanilla_file}.')
+        dir_check(self.datapoint_vanilla_file)
+        with jsonlines.open(self.datapoint_vanilla_file, 'w') as writer:
+            writer.write_all([datapoint.to_json() for datapoint in datapoints])
         logger.info(f'Datapoints dumped.')
 
     def translate_system_prompts(self,
@@ -254,7 +255,8 @@ class OrcaTranslator:
 
         with Pool(self.num_workers) as pool:
             with tqdm(total=self.num_datapoints_to_process, desc='Translating questions: ') as pbar:
-                for datapoint in pool.imap(translate_question_gpt4, self.datapoints):
+                datapoints_translation_only = self.load_datapoints(self.datapoint_translation_only_file)
+                for datapoint in pool.imap(translate_question_gpt4, datapoints_translation_only):
                     datapoint_buffer.add(datapoint)
                     pbar.update()
 
@@ -300,11 +302,6 @@ class OrcaTranslator:
                                       model=model)
         datapoint.zh.response = response
         return datapoint
-
-    # def dump_datapoints(self, output_path: str = 'output/datapoints_vanilla.jsonl', mode='w') -> None:
-    #     dir_check(output_path)
-    #     with jsonlines.open(output_path, mode) as writer:
-    #         writer.write_all([datapoint.to_json() for datapoint in self.datapoints.values()])
 
     @retry(wait=wait_random_exponential(min=1, max=10), stop=stop_after_attempt(3))
     def request_model(self, question: str, system_prompt=None, model=SupportedModel.GPT4) -> str:
