@@ -8,6 +8,8 @@ if __name__ == '__main__':
 
     translator.translate_system_prompts()
 
-    translator.translate_instructions()
+    translator.translate_questions()
+
+    translator.generate_responses()
 
 
