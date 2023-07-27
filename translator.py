@@ -219,7 +219,8 @@ class OrcaTranslator:
         else:
             logger.info(f'No prepared system prompt translations found. Collecting and translating them.')
             # Collect unique prompts
-            unique_prompts = set(datapoint.en.system_prompt for datapoint in self.load_datapoints(self.datapoint_vanilla_file))
+            unique_prompts = set(
+                datapoint.en.system_prompt for datapoint in self.load_datapoints(self.datapoint_vanilla_file))
             # Translate the prompts
             translate_system_prompt_gpt4 = partial(self.translate_system_prompt, model=SupportedModel.GPT4)
             with Pool(self.num_workers) as pool:
@@ -255,8 +256,8 @@ class OrcaTranslator:
 
         with Pool(self.num_workers) as pool:
             with tqdm(total=self.num_datapoints_to_process, desc='Translating questions: ') as pbar:
-                datapoints_translation_only = self.load_datapoints(self.datapoint_translation_only_file)
-                for datapoint in pool.imap(translate_question_gpt4, datapoints_translation_only):
+                datapoints_vanilla = self.load_datapoints(self.datapoint_vanilla_file)
+                for datapoint in pool.imap(translate_question_gpt4, datapoints_vanilla):
                     datapoint_buffer.add(datapoint)
                     pbar.update()
 
@@ -267,7 +268,12 @@ class OrcaTranslator:
     def translate_question(self, datapoint: Datapoint, model: SupportedModel) -> Datapoint:
         logger.info(f'Process {os.getpid()} is translating question for datapoint {datapoint.id}.')
         question = self.request_model(question=f'Please translate the following text into simplified Chinese:\n'
-                                                  f'{datapoint.en.question}',
+                                               f'{datapoint.en.question}',
+                                      model=model)
+        question = self.request_model(question=f'The following sentence is translated from English. Please rephrase it '
+                                               f'so that it sounds more natural, fluent and precise in Chinese. '
+                                               f'Remember, do not lose any information in the source sentence!\n'
+                                               f'{question}',
                                       model=model)
         for pair in self.system_prompt_translations:
             if pair['en'] == datapoint.en.system_prompt:
@@ -285,7 +291,7 @@ class OrcaTranslator:
         datapoint_buffer: DataBuffer = DataBuffer(size=self.buffer_size, dump_path=self.datapoint_complete_file)
 
         with Pool(self.num_workers) as pool:
-            with tqdm(total=self.num_datapoints_to_process, desc='Generation responses: ') as pbar:
+            with tqdm(total=self.num_datapoints_to_process, desc='Generating responses: ') as pbar:
                 datapoints_with_translation = self.load_datapoints(self.datapoint_translation_only_file)
                 for datapoint in pool.imap(generate_response_gpt4, datapoints_with_translation):
                     datapoint_buffer.add(datapoint)
@@ -296,6 +302,8 @@ class OrcaTranslator:
         logger.info(f'Generation completed.')
 
     def generate_response(self, datapoint: Datapoint, model: SupportedModel) -> Datapoint:
+        if datapoint.zh.question.startswith('<error>'):
+            return datapoint
         logger.info(f'Process {os.getpid()} is generating response for datapoint {datapoint.id}.')
         response = self.request_model(question=datapoint.zh.question,
                                       system_prompt=datapoint.zh.system_prompt,
@@ -335,5 +343,5 @@ class OrcaTranslator:
         }).json()
         # print('New translation: ', json.dumps(response, indent=4, ensure_ascii=False))
         if 'error' in response:
-            return f"{response['error']['code']}: {response['error']['message']}"
+            return f"<error> <{response['error']['code']}> {response['error']['message']}"
         return response["choices"][0]["message"]["content"].strip()
