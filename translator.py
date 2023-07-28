@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import re
 from dataclasses import dataclass
 from enum import Enum
 from functools import partial
@@ -20,9 +21,11 @@ def dir_check(directory: str) -> None:
     if not os.path.exists(os.path.dirname(directory)):
         os.makedirs(os.path.dirname(directory))
 
+
 def retry_condition(response) -> bool:
     if response.startswith('<error> <429>') or response.startswith('<error> <server_error>'):
         return True
+
 
 log_path = 'logs/translator.log'
 dir_check(log_path)
@@ -125,11 +128,12 @@ class OrcaTranslator:
                  num_datapoints_to_process=None,
                  num_workers=4):
 
+        logger.info('OrcaTranslator started.')
+
         self.dataset = None
         self.buffer_size = buffer_size
 
         self.num_workers = num_workers
-        self.num_processed_datapoints: int = 0
 
         self.datapoint_vanilla_file = datapoint_vanilla_file
         self.datapoint_translation_only_file = datapoint_translation_only_file
@@ -262,19 +266,30 @@ class OrcaTranslator:
 
         datapoint_buffer: DataBuffer = DataBuffer(size=self.buffer_size)
 
+        num_finished_datapoints = 0
         with Pool(self.num_workers) as pool:
             with tqdm(total=self.num_datapoints_to_process, desc='Translating questions: ') as pbar:
                 datapoints_vanilla = self.load_datapoints(self.datapoint_vanilla_file)
                 for datapoint in pool.imap(translate_question_gpt4, datapoints_vanilla):
-                    datapoint_buffer.add(datapoint)
                     pbar.update()
+                    num_finished_datapoints += 1
+                    if num_finished_datapoints % int(self.num_datapoints_to_process / 100) == 0:
+                        logger.info(f'Translating questions: '
+                                    f'{num_finished_datapoints} / {self.num_datapoints_to_process} = '
+                                    f'{num_finished_datapoints / self.num_datapoints_to_process:.0%} '
+                                    f'datapoints finished.')
+                    datapoint_buffer.add(datapoint)
 
         # Dump the datapoints
         datapoint_buffer.dump()
         logger.info(f'Translation completed.')
 
     def translate_question(self, datapoint: Datapoint, model: SupportedModel) -> Datapoint:
-        logger.info(f'Process {os.getpid()} is translating question for datapoint {datapoint.id}.')
+        # logger.info(f'Process {os.getpid()} is translating question for datapoint {datapoint.id}.')
+        for pair in self.system_prompt_translations:
+            if pair['en'] == datapoint.en.system_prompt:
+                datapoint.zh.system_prompt = pair['zh']
+                break
         # 1. Translate the question
         question = self.request_model(
             question=self.prompt_config['translate_question']['question'].format(datapoint.en.question),
@@ -286,11 +301,9 @@ class OrcaTranslator:
         #               f'Remember, do not lose any information in the source sentence!\n{question}'
         # system_prompt_in = 'You are a professional proofreader. '
         # question = self.request_model(question=question_in, system_prompt=system_prompt_in, model=model)
-        for pair in self.system_prompt_translations:
-            if pair['en'] == datapoint.en.system_prompt:
-                datapoint.zh.system_prompt = pair['zh']
-                break
-        datapoint.zh.question = question
+        translate_pattern = re.compile(r'^.*?(<trnslt>)(.*)(</trnslt>.*)$')
+        datapoint.zh.question = translate_pattern.sub(r'\2', question)
+
         return datapoint
 
     def generate_responses(self) -> None:
@@ -301,21 +314,30 @@ class OrcaTranslator:
 
         datapoint_buffer: DataBuffer = DataBuffer(size=self.buffer_size, dump_path=self.datapoint_complete_file)
 
+        num_finished_datapoints = 0
         with Pool(self.num_workers) as pool:
             with tqdm(total=self.num_datapoints_to_process, desc='Generating responses: ') as pbar:
                 datapoints_with_translation = self.load_datapoints(self.datapoint_translation_only_file)
                 for datapoint in pool.imap(generate_response_gpt4, datapoints_with_translation):
-                    datapoint_buffer.add(datapoint)
                     pbar.update()
+                    num_finished_datapoints += 1
+                    if num_finished_datapoints % int(self.num_datapoints_to_process / 100) == 0:
+                        logger.info(f'Generating responses: '
+                                    f'{num_finished_datapoints} / {self.num_datapoints_to_process} = '
+                                    f'{num_finished_datapoints / self.num_datapoints_to_process:.0%} '
+                                    f'datapoints finished.')
+                    datapoint_buffer.add(datapoint)
 
         # Dump the datapoints
         datapoint_buffer.dump()
         logger.info(f'Generation completed.')
 
+        logger.info('OrcaTranslator finished.')
+
     def generate_response(self, datapoint: Datapoint, model: SupportedModel) -> Datapoint:
         if datapoint.zh.question.startswith('<error>'):
             return datapoint
-        logger.info(f'Process {os.getpid()} is generating response for datapoint {datapoint.id}.')
+        # logger.info(f'Process {os.getpid()} is generating response for datapoint {datapoint.id}.')
         response = self.request_model(question=datapoint.zh.question,
                                       system_prompt=datapoint.zh.system_prompt,
                                       model=model)
@@ -353,7 +375,7 @@ class OrcaTranslator:
             "frequency_penalty": 0
         }).json()
 
-        print('New translation: ', json.dumps(response, indent=4, ensure_ascii=False))
+        # print('New translation: ', json.dumps(response, indent=4, ensure_ascii=False))
         if 'error' in response:
             if response['error'] == 'server error':
                 return f'<error> <server_error>'
@@ -374,6 +396,3 @@ class OrcaTranslator:
         #         writer.write(f'This is it: {json.dumps(response, indent=4, ensure_ascii=False)}')
 
         return response["choices"][0]["message"]["content"].strip()
-
-
-
