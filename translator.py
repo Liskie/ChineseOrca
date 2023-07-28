@@ -1,31 +1,18 @@
-import json
 import logging
 import os
 import re
-from dataclasses import dataclass
-from enum import Enum
 from functools import partial
 from multiprocessing import Pool
 from typing import Generator
 
 import requests
 import yaml
-from jsonlines import jsonlines
-from tenacity import retry, wait_random_exponential, stop_after_attempt, retry_if_result
 from datasets import load_dataset
+from jsonlines import jsonlines
+from tenacity import retry, wait_random_exponential, retry_if_result
 from tqdm import tqdm
 
-
-def dir_check(directory: str) -> None:
-    # Check if the output directory exists
-    if not os.path.exists(os.path.dirname(directory)):
-        os.makedirs(os.path.dirname(directory))
-
-
-def retry_condition(response) -> bool:
-    if response.startswith('<error> <429>') or response.startswith('<error> <server_error>'):
-        return True
-
+from utils import dir_check, DataBuffer, SupportedDatasetType, SupportedModel, LocaleData, Datapoint, retry_condition
 
 log_path = 'logs/translator.log'
 dir_check(log_path)
@@ -33,87 +20,6 @@ logging.basicConfig(filename=log_path,
                     level=logging.INFO,
                     format='[%(asctime)s] [%(levelname)s] %(message)s')
 logger = logging.getLogger()
-
-
-class SupportedModel(Enum):
-    GPT4 = "gpt-4"
-    ChatGPT = "gpt-3.5-turbo-0613"
-
-
-class SupportedDatasetType(Enum):
-    Huggingface = 'huggingface'
-    LismbpLocal = 'local'
-    HPCLocal = 'hpc_local'
-
-
-@dataclass
-class LocaleData:
-    system_prompt: str
-    question: str
-    response: str
-
-    def to_json(self) -> dict:
-        return {
-            'system_prompt': self.system_prompt,
-            'question': self.question,
-            'response': self.response
-        }
-
-    @classmethod
-    def from_json(cls, json_data: dict) -> 'LocaleData':
-        return cls(
-            system_prompt=json_data['system_prompt'],
-            question=json_data['question'],
-            response=json_data['response']
-        )
-
-
-@dataclass
-class Datapoint:
-    id: str
-    en: LocaleData | None = None
-    zh: LocaleData | None = None
-
-    def to_json(self) -> dict:
-        return {
-            'id': self.id,
-            'en': self.en.to_json() if self.en else None,
-            'zh': self.zh.to_json() if self.zh else None
-        }
-
-    @classmethod
-    def from_json(cls, json_data: dict) -> 'Datapoint':
-        return cls(
-            id=json_data['id'],
-            en=LocaleData.from_json(json_data['en']) if json_data['en'] else None,
-            zh=LocaleData.from_json(json_data['zh']) if json_data['zh'] else None
-        )
-
-
-class DataBuffer:
-
-    def __init__(self, size=100, dump_path='output/datapoints_translation_only.jsonl'):
-        self.buffer: list[Datapoint] = []
-        self.size = size
-        self.dump_path = dump_path
-
-        # Clear the dump file
-        dir_check(dump_path)
-        with open(dump_path, 'w') as _:
-            pass
-
-    def add(self, datapoint: Datapoint) -> None:
-        self.buffer.append(datapoint)
-        if len(self.buffer) >= self.size:
-            self.dump()
-            self.buffer = []
-
-    def dump(self) -> None:
-        if not self.buffer:
-            return
-        logger.info(f'Dumping {len(self.buffer)} datapoints into {self.dump_path}.')
-        with jsonlines.open(self.dump_path, 'a') as writer:
-            writer.write_all([datapoint.to_json() for datapoint in self.buffer])
 
 
 class OrcaTranslator:
@@ -126,9 +32,12 @@ class OrcaTranslator:
                  dataset_type=SupportedDatasetType.Huggingface,
                  buffer_size=100,
                  num_datapoints_to_process=None,
-                 num_workers=4):
+                 num_workers=4,
+                 mode='debug'):
 
         logger.info('OrcaTranslator started.')
+
+        self.mode = mode
 
         self.dataset = None
         self.buffer_size = buffer_size
@@ -264,7 +173,7 @@ class OrcaTranslator:
 
         translate_question_gpt4 = partial(self.translate_question, model=SupportedModel.GPT4)
 
-        datapoint_buffer: DataBuffer = DataBuffer(size=self.buffer_size)
+        datapoint_buffer: DataBuffer = DataBuffer(size=self.buffer_size, logger=logger)
 
         num_finished_datapoints = 0
         with Pool(self.num_workers) as pool:
@@ -312,7 +221,9 @@ class OrcaTranslator:
 
         generate_response_gpt4 = partial(self.generate_response, model=SupportedModel.GPT4)
 
-        datapoint_buffer: DataBuffer = DataBuffer(size=self.buffer_size, dump_path=self.datapoint_complete_file)
+        datapoint_buffer: DataBuffer = DataBuffer(size=self.buffer_size,
+                                                  dump_path=self.datapoint_complete_file,
+                                                  logger=logger)
 
         num_finished_datapoints = 0
         with Pool(self.num_workers) as pool:
