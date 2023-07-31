@@ -73,10 +73,6 @@ class OrcaTranslator:
             self.load_dataset(dataset_type)
             self.generate_datapoints()
 
-    # @property
-    # def datapoints(self):
-    #     return self.load_datapoints(self.datapoint_vanilla_file)
-
     def load_datapoints(self, input_path: str) -> Generator[Datapoint, None, None]:
         logger.info(f'{self.num_datapoints_to_process} out of {self.num_datapoints_total} datapoints will be loaded '
                     f'from {input_path} in iterator mode.')
@@ -231,7 +227,11 @@ class OrcaTranslator:
                 for datapoint in pool.imap(generate_response_gpt4, datapoints_with_translation):
                     pbar.update()
                     num_finished_datapoints += 1
-                    if num_finished_datapoints % int(self.num_datapoints_to_process / 100) == 0:
+                    if int(self.num_datapoints_to_process / 100) == 0:
+                        logger.info(f'Generating responses: '
+                                    f'{num_finished_datapoints} / {self.num_datapoints_to_process} '
+                                    f'datapoints finished.')
+                    elif num_finished_datapoints % int(self.num_datapoints_to_process / 100) == 0:
                         logger.info(f'Generating responses: '
                                     f'{num_finished_datapoints} / {self.num_datapoints_to_process} = '
                                     f'{num_finished_datapoints / self.num_datapoints_to_process:.0%} '
