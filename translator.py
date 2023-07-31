@@ -12,7 +12,8 @@ from jsonlines import jsonlines
 from tenacity import retry, wait_random_exponential, retry_if_result
 from tqdm import tqdm
 
-from utils import dir_check, DataBuffer, SupportedDatasetType, SupportedModel, LocaleData, Datapoint, retry_condition
+from utils import dir_check, DataBuffer, SupportedDatasetType, SupportedModel, LocaleData, Datapoint, retry_condition, \
+    SupportedMode, SupportedLoadPhase
 
 log_path = 'logs/translator.log'
 dir_check(log_path)
@@ -25,15 +26,15 @@ logger = logging.getLogger()
 class OrcaTranslator:
 
     def __init__(self,
-                 datapoint_vanilla_file: str = 'output/datapoints_vanilla.jsonl',
-                 datapoint_translation_only_file: str = 'output/datapoints_translation_only.jsonl',
-                 datapoint_complete_file: str = 'output/datapoints_complete.jsonl',
+                 datapoint_vanilla_path: str = 'output/datapoints_vanilla.jsonl',
+                 datapoint_translation_only_path: str = 'output/datapoints_translation_only.jsonl',
+                 datapoint_complete_path: str = 'output/datapoints_complete.jsonl',
                  prompt_config_file: str = 'config/prompt.yaml',
                  dataset_type=SupportedDatasetType.Huggingface,
                  buffer_size=100,
                  num_datapoints_to_process=None,
                  num_workers=4,
-                 mode='debug'):
+                 mode=SupportedMode.Restart):
 
         logger.info('OrcaTranslator started.')
 
@@ -44,9 +45,9 @@ class OrcaTranslator:
 
         self.num_workers = num_workers
 
-        self.datapoint_vanilla_file = datapoint_vanilla_file
-        self.datapoint_translation_only_file = datapoint_translation_only_file
-        self.datapoint_complete_file = datapoint_complete_file
+        self.datapoint_vanilla_path = datapoint_vanilla_path
+        self.datapoint_translation_only_path = datapoint_translation_only_path
+        self.datapoint_complete_path = datapoint_complete_path
 
         with open(prompt_config_file) as reader:
             self.prompt_config = yaml.load(reader, Loader=yaml.FullLoader)
@@ -54,7 +55,7 @@ class OrcaTranslator:
         self.system_prompt_translations: list[dict[str, str]] = []
 
         # Count datapoints
-        with open(datapoint_vanilla_file, 'r') as reader:
+        with open(datapoint_vanilla_path, 'r') as reader:
             self.num_datapoints_total = sum(1 for _ in reader)
 
         self.num_datapoints_to_process = num_datapoints_to_process if num_datapoints_to_process else self.num_datapoints_total
@@ -66,19 +67,43 @@ class OrcaTranslator:
                 f'dataset ({self.num_datapoints_total}).')
 
         # Check if there exists prepared datapoints in the output directory
-        if os.path.exists(datapoint_vanilla_file):
-            logger.info(f'Found prepared datapoints in {datapoint_vanilla_file}.')
+        if os.path.exists(datapoint_vanilla_path):
+            logger.info(f'Found prepared datapoints in {datapoint_vanilla_path}.')
         else:
             logger.info(f'No prepared datapoints found.')
             self.load_dataset(dataset_type)
             self.generate_datapoints()
 
-    def load_datapoints(self, input_path: str) -> Generator[Datapoint, None, None]:
-        logger.info(f'{self.num_datapoints_to_process} out of {self.num_datapoints_total} datapoints will be loaded '
+    def load_datapoints(self, load_phase: SupportedLoadPhase) -> Generator[Datapoint, None, None]:
+        match load_phase:
+            case SupportedLoadPhase.QuestionTranslation:
+                input_path = self.datapoint_vanilla_path
+                output_path = self.datapoint_translation_only_path
+            case SupportedLoadPhase.ResponseGeneration:
+                input_path = self.datapoint_translation_only_path
+                output_path = self.datapoint_complete_path
+            case _:
+                raise ValueError(f'Unsupported load phase: {load_phase}. '
+                                 f'All supported load phases are: {list(SupportedLoadPhase)}')
+
+        # Check how may datapoints has been previously processed and dumped
+        if self.mode == SupportedMode.Continue:
+            with jsonlines.open(output_path, 'r') as reader:
+                existing_datapoints = sum(1 for _ in reader)
+        else:
+            existing_datapoints = 0
+
+        logger.info(f'Datapoints #{existing_datapoints + 1} ~ #{existing_datapoints + self.num_datapoints_to_process} '
+                    f'of a total of {self.num_datapoints_total} datapoints will be loaded '
                     f'from {input_path} in iterator mode.')
+
         with jsonlines.open(input_path, 'r') as reader:
             for i, datapoint in enumerate(reader):
-                if i >= self.num_datapoints_to_process:
+                # Skip the existing datapoints
+                if i < existing_datapoints:
+                    continue
+                # Stop when the number of datapoints to process is reached
+                if i >= self.num_datapoints_to_process + existing_datapoints:
                     break
                 yield Datapoint.from_json(datapoint)
 
@@ -118,9 +143,9 @@ class OrcaTranslator:
                     response=''
                 )
             ))
-        logger.info(f'Generated {len(datapoints)} datapoints. Dumping datapoints into {self.datapoint_vanilla_file}.')
-        dir_check(self.datapoint_vanilla_file)
-        with jsonlines.open(self.datapoint_vanilla_file, 'w') as writer:
+        logger.info(f'Generated {len(datapoints)} datapoints. Dumping datapoints into {self.datapoint_vanilla_path}.')
+        dir_check(self.datapoint_vanilla_path)
+        with jsonlines.open(self.datapoint_vanilla_path, 'w') as writer:
             writer.write_all([datapoint.to_json() for datapoint in datapoints])
         logger.info(f'Datapoints dumped.')
 
@@ -137,7 +162,7 @@ class OrcaTranslator:
             logger.info(f'No prepared system prompt translations found. Collecting and translating them.')
             # Collect unique prompts
             unique_prompts = set(
-                datapoint.en.system_prompt for datapoint in self.load_datapoints(self.datapoint_vanilla_file))
+                datapoint.en.system_prompt for datapoint in self.load_datapoints(self.datapoint_vanilla_path))
             # Translate the prompts
             translate_system_prompt_gpt4 = partial(self.translate_system_prompt, model=SupportedModel.GPT4)
             with Pool(self.num_workers) as pool:
@@ -169,16 +194,20 @@ class OrcaTranslator:
 
         translate_question_gpt4 = partial(self.translate_question, model=SupportedModel.GPT4)
 
-        datapoint_buffer: DataBuffer = DataBuffer(size=self.buffer_size, logger=logger)
+        datapoint_buffer: DataBuffer = DataBuffer(size=self.buffer_size, logger=logger, mode=self.mode)
 
         num_finished_datapoints = 0
         with Pool(self.num_workers) as pool:
             with tqdm(total=self.num_datapoints_to_process, desc='Translating questions: ') as pbar:
-                datapoints_vanilla = self.load_datapoints(self.datapoint_vanilla_file)
+                datapoints_vanilla = self.load_datapoints(SupportedLoadPhase.QuestionTranslation)
                 for datapoint in pool.imap(translate_question_gpt4, datapoints_vanilla):
                     pbar.update()
                     num_finished_datapoints += 1
-                    if num_finished_datapoints % int(self.num_datapoints_to_process / 100) == 0:
+                    if int(self.num_datapoints_to_process / 100) == 0:
+                        logger.info(f'Translating questions: '
+                                    f'{num_finished_datapoints} / {self.num_datapoints_to_process} '
+                                    f'datapoints finished.')
+                    elif num_finished_datapoints % int(self.num_datapoints_to_process / 100) == 0:
                         logger.info(f'Translating questions: '
                                     f'{num_finished_datapoints} / {self.num_datapoints_to_process} = '
                                     f'{num_finished_datapoints / self.num_datapoints_to_process:.0%} '
@@ -217,13 +246,14 @@ class OrcaTranslator:
         generate_response_gpt4 = partial(self.generate_response, model=SupportedModel.GPT4)
 
         datapoint_buffer: DataBuffer = DataBuffer(size=self.buffer_size,
-                                                  dump_path=self.datapoint_complete_file,
-                                                  logger=logger)
+                                                  dump_path=self.datapoint_complete_path,
+                                                  logger=logger,
+                                                  mode=self.mode)
 
         num_finished_datapoints = 0
         with Pool(self.num_workers) as pool:
             with tqdm(total=self.num_datapoints_to_process, desc='Generating responses: ') as pbar:
-                datapoints_with_translation = self.load_datapoints(self.datapoint_translation_only_file)
+                datapoints_with_translation = self.load_datapoints(SupportedLoadPhase.ResponseGeneration)
                 for datapoint in pool.imap(generate_response_gpt4, datapoints_with_translation):
                     pbar.update()
                     num_finished_datapoints += 1

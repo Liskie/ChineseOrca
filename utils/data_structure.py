@@ -14,8 +14,13 @@ class SupportedDatasetType(Enum):
 
 
 class SupportedMode(Enum):
-    Debug = 'debug'
-    Deploy = 'deploy'
+    Restart = 'restart'
+    Continue = 'continue'
+
+
+class SupportedLoadPhase(Enum):
+    QuestionTranslation = 'question_translation'
+    ResponseGeneration = 'response_generation'
 
 
 @dataclass

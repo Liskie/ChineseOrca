@@ -1,21 +1,31 @@
 from jsonlines import jsonlines
 
-from .data_structure import Datapoint
+from .data_structure import Datapoint, SupportedMode
 from .utils import dir_check
 
 
 class DataBuffer:
 
-    def __init__(self, size=100, dump_path='output/datapoints_translation_only.jsonl', logger=None):
+    def __init__(self, 
+                 size=100,
+                 dump_path='output/datapoints_translation_only.jsonl',
+                 logger=None,
+                 mode=SupportedMode.Restart):
         self.buffer: list[Datapoint] = []
         self.size = size
         self.dump_path = dump_path
         self.logger = logger
+        self.mode = mode
 
-        # Clear the dump file
         dir_check(dump_path)
-        with open(dump_path, 'w') as _:
-            pass
+        match self.mode:
+            case SupportedMode.Restart:
+                with open(dump_path, 'w') as _:
+                    pass
+            case SupportedMode.Continue:
+                pass
+            case _:
+                pass
 
     def add(self, datapoint: Datapoint) -> None:
         self.buffer.append(datapoint)
