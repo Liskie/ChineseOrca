@@ -211,7 +211,7 @@ class OrcaTranslator:
         # system_prompt_in = 'You are a professional proofreader. '
         # question = self.request_model(question=question_in, system_prompt=system_prompt_in, model=model)
         translate_pattern = re.compile(r'^.*?(<trnslt>)(.*)(</trnslt>.*)$')
-        datapoint.zh.question = translate_pattern.sub(r'\2', question)
+        datapoint.zh.question = translate_pattern.sub(r'\2', question, re.DOTALL)
         print('ori_q: ', question)
         print('sub_q: ', datapoint.zh.question)
 
