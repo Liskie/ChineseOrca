@@ -87,7 +87,7 @@ class OrcaTranslator:
                                  f'All supported load phases are: {list(SupportedLoadPhase)}')
 
         # Check how may datapoints has been previously processed and dumped
-        if self.mode == SupportedMode.Continue:
+        if self.mode == SupportedMode.Continue and os.path.exists(output_path):
             with jsonlines.open(output_path, 'r') as reader:
                 existing_datapoints = sum(1 for _ in reader)
         else:
