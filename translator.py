@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import re
@@ -9,7 +10,7 @@ import requests
 import yaml
 from datasets import load_dataset
 from jsonlines import jsonlines
-from tenacity import retry, wait_random_exponential, retry_if_result
+from tenacity import retry, wait_random_exponential, retry_if_result, stop_after_attempt
 from tqdm import tqdm
 
 from utils import dir_check, DataBuffer, SupportedDatasetType, SupportedModel, LocaleData, Datapoint, retry_condition, \
@@ -284,7 +285,7 @@ class OrcaTranslator:
         datapoint.zh.response = response
         return datapoint
 
-    @retry(wait=wait_random_exponential(min=10, max=60), retry=retry_if_result(retry_condition))
+    @retry(wait=wait_random_exponential(min=10, max=60), stop=stop_after_attempt(20), retry=retry_if_result(retry_condition))
     def request_model(self, question: str, system_prompt=None, model=SupportedModel.GPT4) -> str:
         match model:
             case SupportedModel.GPT4:
@@ -317,7 +318,7 @@ class OrcaTranslator:
         response_data = response.json()
         response.close()
 
-        # print('New translation: ', json.dumps(response, indent=4, ensure_ascii=False))
+        print('New response: ', json.dumps(response_data, indent=4, ensure_ascii=False))
         if 'error' in response_data:
             if response_data['error'] == 'server error':
                 return f'<error> <server_error>'
