@@ -313,26 +313,28 @@ class OrcaTranslator:
             "max_tokens": 2048,
             "presence_penalty": 0,
             "frequency_penalty": 0
-        }).json()
+        })
+        response_data = response.json()
+        response.close()
 
         # print('New translation: ', json.dumps(response, indent=4, ensure_ascii=False))
-        if 'error' in response:
-            if response['error'] == 'server error':
+        if 'error' in response_data:
+            if response_data['error'] == 'server error':
                 return f'<error> <server_error>'
-            return f"<error> <{response['error']['code']}> {response['error']['message']}"
+            return f"<error> <{response_data['error']['code']}> {response_data['error']['message']}"
 
-        if response["choices"][0]['finish_reason'] == 'content_filter':
+        if response_data["choices"][0]['finish_reason'] == 'content_filter':
             return f'<error> <content_filter>'
 
         # try:
         #
         # except KeyError:
         #     with open('output/this_is_it.json', 'w') as writer:
-        #         writer.write(f'This is it: {json.dumps(response, indent=4, ensure_ascii=False)}')
+        #         writer.write(f'This is it: {json.dumps(response_data, indent=4, ensure_ascii=False)}')
         #         return
 
-        # if 'content' not in response["choices"][0]["message"]:
+        # if 'content' not in response_data["choices"][0]["message"]:
         #     with open('output/this_is_it.json', 'w') as writer:
-        #         writer.write(f'This is it: {json.dumps(response, indent=4, ensure_ascii=False)}')
+        #         writer.write(f'This is it: {json.dumps(response_data, indent=4, ensure_ascii=False)}')
 
-        return response["choices"][0]["message"]["content"].strip()
+        return response_data["choices"][0]["message"]["content"].strip()
