@@ -284,7 +284,7 @@ class OrcaTranslator:
         datapoint.zh.response = response
         return datapoint
 
-    @retry(wait=wait_random_exponential(min=5, max=20), retry=retry_if_result(retry_condition))
+    @retry(wait=wait_random_exponential(min=10, max=60), retry=retry_if_result(retry_condition))
     def request_model(self, question: str, system_prompt=None, model=SupportedModel.GPT4) -> str:
         match model:
             case SupportedModel.GPT4:
