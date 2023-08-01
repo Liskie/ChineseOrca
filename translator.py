@@ -10,7 +10,7 @@ import requests
 import yaml
 from datasets import load_dataset
 from jsonlines import jsonlines
-from tenacity import retry, wait_random_exponential, retry_if_result, stop_after_attempt
+from tenacity import retry, wait_random_exponential, retry_if_result, stop_after_attempt, wait_fixed, before_log
 from tqdm import tqdm
 
 from utils import dir_check, DataBuffer, SupportedDatasetType, SupportedModel, LocaleData, Datapoint, retry_condition, \
@@ -77,6 +77,9 @@ class OrcaTranslator:
 
     def load_datapoints(self, load_phase: SupportedLoadPhase) -> Generator[Datapoint, None, None]:
         match load_phase:
+            case SupportedLoadPhase.SystemPromptTranslation:
+                input_path = self.datapoint_vanilla_path
+                output_path = None
             case SupportedLoadPhase.QuestionTranslation:
                 input_path = self.datapoint_vanilla_path
                 output_path = self.datapoint_translation_only_path
@@ -163,7 +166,7 @@ class OrcaTranslator:
             logger.info(f'No prepared system prompt translations found. Collecting and translating them.')
             # Collect unique prompts
             unique_prompts = set(
-                datapoint.en.system_prompt for datapoint in self.load_datapoints(self.datapoint_vanilla_path))
+                datapoint.en.system_prompt for datapoint in self.load_datapoints(SupportedLoadPhase.SystemPromptTranslation))
             # Translate the prompts
             translate_system_prompt_gpt4 = partial(self.translate_system_prompt, model=SupportedModel.GPT4)
             with Pool(self.num_workers) as pool:
@@ -189,6 +192,7 @@ class OrcaTranslator:
                 model=model)
         }
 
+    @retry(wait=wait_fixed(60), before=before_log(logger, logging.WARNING))
     def translate_questions(self) -> None:
         # Distribute the work to multiple processes
         logger.info(f'Distributing work of question translation to {self.num_workers} workers.')
@@ -240,6 +244,7 @@ class OrcaTranslator:
         datapoint.zh.question = translate_pattern.sub(r'\2', question)
         return datapoint
 
+    @retry(wait=wait_fixed(60), before=before_log(logger, logging.WARNING))
     def generate_responses(self) -> None:
         # Distribute the work to multiple processes
         logger.info(f'Distributing work of response generation to {self.num_workers} workers.')

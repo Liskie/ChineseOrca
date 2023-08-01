@@ -19,6 +19,7 @@ class SupportedMode(Enum):
 
 
 class SupportedLoadPhase(Enum):
+    SystemPromptTranslation = 'system_prompt_translation'
     QuestionTranslation = 'question_translation'
     ResponseGeneration = 'response_generation'
 
