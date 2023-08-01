@@ -18,7 +18,7 @@ class SupportedMode(Enum):
     Continue = 'continue'
 
 
-class SupportedLoadPhase(Enum):
+class SupportedRunPhase(Enum):
     SystemPromptTranslation = 'system_prompt_translation'
     QuestionTranslation = 'question_translation'
     ResponseGeneration = 'response_generation'
