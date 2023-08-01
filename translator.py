@@ -13,8 +13,9 @@ from jsonlines import jsonlines
 from tenacity import retry, wait_random_exponential, retry_if_result, stop_after_attempt, wait_fixed, before_log
 from tqdm import tqdm
 
-from utils import dir_check, DataBuffer, SupportedDatasetType, SupportedModel, LocaleData, Datapoint, retry_condition, \
-    SupportedMode, SupportedRunPhase
+from utils import dir_check, retry_condition
+from utils.data_buffer import DataBuffer, Datapoint
+from utils.data_structure import SupportedMode, SupportedDatasetType, SupportedRunPhase, SupportedModel, LocaleData
 
 
 class OrcaTranslator:
