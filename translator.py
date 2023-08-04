@@ -324,7 +324,7 @@ class OrcaTranslator:
             "messages": messages,
             "temperature": 1,
             "top_p": 1,
-            "max_tokens": 2048,
+            "max_tokens": 1024,
             "presence_penalty": 0,
             "frequency_penalty": 0
         })
