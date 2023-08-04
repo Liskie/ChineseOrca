@@ -26,21 +26,17 @@ class OrcaTranslator:
                  datapoint_complete_path: str = 'output/datapoints_complete.jsonl',
                  prompt_config_file: str = 'config/prompt.yaml',
                  dataset_type=SupportedDatasetType.Huggingface,
-                 buffer_size=100,
+                 buffer_size=10,
                  num_datapoints_to_process=None,
                  num_workers=4,
                  mode=SupportedMode.Restart,
-                 logger=None):
+                 log_path='logs/orca_translator.log'):
 
-        if not logger:
-            log_path = 'output/orca_translator.log'
-            dir_check(log_path)
-            logging.basicConfig(filename=log_path,
-                                level=logging.INFO,
-                                format='[%(asctime)s] [%(levelname)s] %(message)s')
-            self.logger = logging.getLogger()
-        else:
-            self.logger = logger
+        dir_check(log_path)
+        logging.basicConfig(filename=log_path,
+                            level=logging.INFO,
+                            format='[%(asctime)s] [%(levelname)s] %(message)s')
+        self.logger = logging.getLogger()
 
         self.logger.info('OrcaTranslator started.')
 
@@ -162,7 +158,7 @@ class OrcaTranslator:
 
     def translate_system_prompts(self,
                                  system_prompt_cache_path='output/system_prompt_translations.jsonl',
-                                 force_retranslate=False) -> None:
+                                 force_retranslate=False) -> 'OrcaTranslator':
         dir_check(system_prompt_cache_path)
         if os.path.exists(system_prompt_cache_path) and not force_retranslate:
             self.logger.info(f'Found prepared system prompt translations in {system_prompt_cache_path}. Loading them.')
@@ -176,7 +172,7 @@ class OrcaTranslator:
                 datapoint.en.system_prompt for datapoint in
                 self.load_datapoints(SupportedRunPhase.SystemPromptTranslation))
             # Translate the prompts
-            translate_system_prompt_gpt4 = partial(self.translate_system_prompt, model=SupportedModel.GPT4)
+            translate_system_prompt_gpt4 = partial(self._translate_system_prompt, model=SupportedModel.GPT4)
             with Pool(self.num_workers) as pool:
                 with tqdm(total=len(unique_prompts), desc='Translating system prompts: ') as pbar:
                     for prompt_pair in pool.imap(translate_system_prompt_gpt4, unique_prompts):
@@ -185,8 +181,9 @@ class OrcaTranslator:
             # Dump the translation pairs
             with jsonlines.open(system_prompt_cache_path, 'w') as writer:
                 writer.write_all(self.system_prompt_translations)
+        return self
 
-    def translate_system_prompt(self, system_prompt: str, model: SupportedModel) -> dict[str, str]:
+    def _translate_system_prompt(self, system_prompt: str, model: SupportedModel) -> dict[str, str]:
         self.logger.info(f'Process {os.getpid()} is translating system prompt {system_prompt}.')
         if not system_prompt:
             return {
@@ -201,11 +198,11 @@ class OrcaTranslator:
         }
 
     @retry(wait=wait_fixed(60))
-    def translate_questions(self) -> None:
+    def translate_questions(self) -> 'OrcaTranslator':
         # Distribute the work to multiple processes
         self.logger.info(f'Distributing work of question translation to {self.num_workers} workers.')
 
-        translate_question_gpt4 = partial(self.translate_question, model=SupportedModel.GPT4)
+        translate_question_gpt4 = partial(self._translate_question, model=SupportedModel.GPT4)
 
         datapoint_buffer: DataBuffer = DataBuffer(size=self.buffer_size, logger=self.logger, mode=self.mode)
 
@@ -230,8 +227,9 @@ class OrcaTranslator:
         # Dump the datapoints
         datapoint_buffer.dump()
         self.logger.info(f'Translation completed.')
+        return self
 
-    def translate_question(self, datapoint: Datapoint, model: SupportedModel) -> Datapoint:
+    def _translate_question(self, datapoint: Datapoint, model: SupportedModel) -> Datapoint:
         # self.logger.info(f'Process {os.getpid()} is translating question for datapoint {datapoint.id}.')
         for pair in self.system_prompt_translations:
             if pair['en'] == datapoint.en.system_prompt:
@@ -253,11 +251,11 @@ class OrcaTranslator:
         return datapoint
 
     @retry(wait=wait_fixed(60))
-    def generate_responses(self) -> None:
+    def generate_responses(self) -> 'OrcaTranslator':
         # Distribute the work to multiple processes
         self.logger.info(f'Distributing work of response generation to {self.num_workers} workers.')
 
-        generate_response_gpt4 = partial(self.generate_response, model=SupportedModel.GPT4)
+        generate_response_gpt4 = partial(self._generate_response, model=SupportedModel.GPT4)
 
         datapoint_buffer: DataBuffer = DataBuffer(size=self.buffer_size,
                                                   dump_path=self.datapoint_complete_path,
@@ -287,8 +285,9 @@ class OrcaTranslator:
         self.logger.info(f'Generation completed.')
 
         self.logger.info('OrcaTranslator finished.')
+        return self
 
-    def generate_response(self, datapoint: Datapoint, model: SupportedModel) -> Datapoint:
+    def _generate_response(self, datapoint: Datapoint, model: SupportedModel) -> Datapoint:
         if datapoint.zh.question.startswith('<error>'):
             return datapoint
         # self.logger.info(f'Process {os.getpid()} is generating response for datapoint {datapoint.id}.')
@@ -332,7 +331,7 @@ class OrcaTranslator:
         response_data = response.json()
         response.close()
 
-        print('New response: ', json.dumps(response_data, indent=4, ensure_ascii=False))
+        # print('New response: ', json.dumps(response_data, indent=4, ensure_ascii=False))
         if 'error' in response_data:
             if response_data['error'] == 'server error':
                 return f'<error> <server_error>'
@@ -340,5 +339,8 @@ class OrcaTranslator:
 
         if response_data["choices"][0]['finish_reason'] == 'content_filter':
             return f'<error> <content_filter>'
+
+        if 'content' not in response_data["choices"][0]["message"]:
+            return f'<error> <empty_content>'
 
         return response_data["choices"][0]["message"]["content"].strip()
