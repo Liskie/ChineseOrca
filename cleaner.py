@@ -1,3 +1,4 @@
+import fire
 from jsonlines import jsonlines
 
 
@@ -18,3 +19,7 @@ class DataCleaner:
                     if datapoint.zh.question.startswith('<error>') or datapoint.zh.response.startswith('<error>'):
                         continue
                     writer.write(datapoint)
+
+
+if __name__ == '__main__':
+    fire.Fire(DataCleaner)
