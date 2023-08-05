@@ -29,7 +29,7 @@ class DataCleaner:
                     valid += 1
                     writer.write(datapoint)
 
-        print(f'Cleaning completed. {valid} / {total} = {valid / total:.2f}% datapoints are valid.')
+        print(f'Cleaning completed. {valid} / {total} = {valid / total:.2%} datapoints are valid.')
 
 
 if __name__ == '__main__':
