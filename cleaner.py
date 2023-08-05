@@ -13,10 +13,11 @@ class DataCleaner:
             self.output_path = output_path
 
     def clean(self):
-        with jsonlines.open(self.input_path, 'r') as reader:
+        with (jsonlines.open(self.input_path, 'r') as reader):
             with jsonlines.open(self.output_path, 'w') as writer:
                 for datapoint in reader:
-                    if datapoint.zh.question.startswith('<error>') or datapoint.zh.response.startswith('<error>'):
+                    if datapoint['zh']['question'].startswith('<error>') or \
+                            datapoint['zh']['response'].startswith('<error>'):
                         continue
                     writer.write(datapoint)
 
