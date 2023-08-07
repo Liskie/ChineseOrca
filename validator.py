@@ -3,6 +3,7 @@ import os
 from typing import Optional
 
 import fire
+import rich.progress
 import yaml
 from jsonlines import jsonlines
 
@@ -74,13 +75,19 @@ class OrcaValidator:
         :return: None
         """
 
+        with jsonlines.open(output_path, 'r') as output_reader:
+            num_datapoints = sum(1 for _ in output_reader)
+
         with jsonlines.open(input_path, 'r') as input_reader, jsonlines.open(output_path, 'r') as output_reader:
-            for output_datapoint_json in output_reader:
+            for i, output_datapoint_json in rich.progress.track(enumerate(output_reader),
+                                                                description=f'Validating {output_path}:',
+                                                                total=num_datapoints):
                 try:
                     input_datapoint: Datapoint = Datapoint.from_json(input_reader.read())
                     output_datapoint: Datapoint = Datapoint.from_json(output_datapoint_json)
                     if input_datapoint.id != output_datapoint.id:
-                        raise OrcaValidationError(f'Input: {input_path} and output: {output_path} mismatch on id.')
+                        raise OrcaValidationError(f'In line {i}, input {input_path} has {input_datapoint.id}, '
+                                                  f'but output {output_path} has {output_datapoint.id}.')
                 except StopIteration:
                     raise OrcaValidationError(f'Output: {output_path} outnumbers input: {input_path}.')
 

@@ -29,7 +29,7 @@ class OrcaValidationError(Exception):
         self.message = message
 
     def __str__(self):
-        return f'OrcaValidationError: {self.message}'
+        return self.message
 
 
 @dataclass
