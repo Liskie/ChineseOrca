@@ -57,6 +57,20 @@ class OrcaTranslator:
 
         self.logger.info('OrcaTranslator started.')
 
+        # Log the arguments
+        self.logger.info(f'Logging arguments:')
+        self.logger.info(f'\tpath_config_file: {path_config_file}')
+        self.logger.info(f'\tprompt_config_file: {prompt_config_file}')
+        self.logger.info(f'\tdatapoint_vanilla_path: {datapoint_vanilla_path}')
+        self.logger.info(f'\tdatapoint_translation_only_path: {datapoint_translation_only_path}')
+        self.logger.info(f'\tdatapoint_complete_path: {datapoint_complete_path}')
+        self.logger.info(f'\tlog_path: {log_path}')
+        self.logger.info(f'\tdataset_type: {dataset_type}')
+        self.logger.info(f'\tbuffer_size: {buffer_size}')
+        self.logger.info(f'\tnum_datapoints_to_process: {num_datapoints_to_process}')
+        self.logger.info(f'\tnum_workers: {num_workers}')
+        self.logger.info(f'\tmode: {mode}')
+
         self.mode = mode
 
         self.dataset = None
