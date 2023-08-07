@@ -67,7 +67,7 @@ class OrcaValidator:
 
         self.logger.info('Validation finished.')
 
-    def _validate_once(self, input_path: str, output_path: str):
+    def _validate_once(self, input_path: str, output_path: str, ) -> None:
         """
         This method checks if all datapoints in the output_path match those in the input_path.
         :param input_path: The path to the input file.
@@ -79,17 +79,23 @@ class OrcaValidator:
             num_datapoints = sum(1 for _ in output_reader)
 
         with jsonlines.open(input_path, 'r') as input_reader, jsonlines.open(output_path, 'r') as output_reader:
-            for i, output_datapoint_json in rich.progress.track(enumerate(output_reader),
-                                                                description=f'Validating {output_path}:',
-                                                                total=num_datapoints):
-                try:
-                    input_datapoint: Datapoint = Datapoint.from_json(input_reader.read())
-                    output_datapoint: Datapoint = Datapoint.from_json(output_datapoint_json)
-                    if input_datapoint.id != output_datapoint.id:
-                        raise OrcaValidationError(f'In line {i}, input {input_path} has {input_datapoint.id}, '
-                                                  f'but output {output_path} has {output_datapoint.id}.')
-                except StopIteration:
-                    raise OrcaValidationError(f'Output: {output_path} outnumbers input: {input_path}.')
+            with open(input_path.replace('.jsonl', '_ids.txt'), 'r') as input_id_writer, \
+                    open(output_path.replace('.jsonl', '_ids.txt'), 'r') as output_id_writer:
+                for i, output_datapoint_json in rich.progress.track(enumerate(output_reader),
+                                                                    description=f'Validating {output_path}:',
+                                                                    total=num_datapoints):
+                    try:
+                        input_datapoint: Datapoint = Datapoint.from_json(input_reader.read())
+                        output_datapoint: Datapoint = Datapoint.from_json(output_datapoint_json)
+                        input_id_writer.write(f'{input_datapoint.id}\n')
+                        output_id_writer.write(f'{output_datapoint.id}\n')
+                        if input_datapoint.id != output_datapoint.id:
+                            self.logger.error(f'In line {i}, input {input_path} has {input_datapoint.id}, '
+                                              f'but output {output_path} has {output_datapoint.id}.')
+                    except StopIteration:
+                        error_info = f'Output {output_path} has {num_datapoints}, which outnumbers input {input_path}.'
+                        self.logger.error(error_info)
+                        raise OrcaValidationError(error_info)
 
 
 if __name__ == '__main__':
