@@ -4,7 +4,7 @@ import os
 import re
 from functools import partial
 from multiprocessing import Pool
-from typing import Generator
+from typing import Generator, Optional
 
 import requests
 import yaml
@@ -21,16 +21,33 @@ from utils.data_structure import SupportedMode, SupportedDatasetType, SupportedR
 class OrcaTranslator:
 
     def __init__(self,
-                 datapoint_vanilla_path: str = 'output/datapoints_vanilla.jsonl',
-                 datapoint_translation_only_path: str = 'output/datapoints_translation_only.jsonl',
-                 datapoint_complete_path: str = 'output/datapoints_complete.jsonl',
-                 prompt_config_file: str = 'config/prompt.yaml',
+                 path_config_file: str = 'config/path.yaml',
+                 prompt_config_file: Optional[str] = None,
+                 datapoint_vanilla_path: Optional[str] = None,
+                 datapoint_translation_only_path: Optional[str] = None,
+                 datapoint_complete_path: Optional[str] = None,
+                 log_path: Optional[str] = None,
                  dataset_type=SupportedDatasetType.Huggingface,
                  buffer_size=10,
                  num_datapoints_to_process=None,
                  num_workers=4,
                  mode=SupportedMode.Restart,
-                 log_path='logs/orca_translator.log'):
+                 ):
+        # Prefer to use direct constructor arguments over those in the path_config_file
+        if os.path.exists(path_config_file):
+            with open(path_config_file) as reader:
+                path_config = yaml.load(reader, Loader=yaml.FullLoader)
+
+            if not prompt_config_file:
+                prompt_config_file = path_config['config_paths']['prompt_config_file']
+            if not datapoint_vanilla_path:
+                datapoint_vanilla_path = path_config['data_paths']['datapoint_vanilla_path']
+            if not datapoint_translation_only_path:
+                datapoint_translation_only_path = path_config['data_paths']['datapoint_translation_only_path']
+            if not datapoint_complete_path:
+                datapoint_complete_path = path_config['data_paths']['datapoint_complete_path']
+            if not log_path:
+                log_path = path_config['project_paths']['log_path']
 
         dir_check(log_path)
         logging.basicConfig(filename=log_path,

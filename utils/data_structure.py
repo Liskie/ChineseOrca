@@ -24,6 +24,14 @@ class SupportedRunPhase(Enum):
     ResponseGeneration = 'response_generation'
 
 
+class OrcaValidationError(Exception):
+    def __init__(self, message):
+        self.message = message
+
+    def __str__(self):
+        return f'OrcaValidationError: {self.message}'
+
+
 @dataclass
 class LocaleData:
     system_prompt: str

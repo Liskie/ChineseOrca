@@ -1,0 +1,15 @@
+config_paths:
+  prompt_config_file:
+    'config/prompt.yaml'
+
+data_paths:
+  datapoint_vanilla_path:
+    'output/datapoints_vanilla.jsonl'
+  datapoint_translation_only_path:
+    'output/datapoints_translation_only.jsonl'
+  datapoint_complete_path:
+    'output/datapoints_complete.jsonl'
+
+project_paths:
+  log_path:
+    'logs/orca_translator.log'
