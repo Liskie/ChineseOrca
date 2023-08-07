@@ -18,6 +18,7 @@ class OrcaValidator:
                  datapoint_translation_only_path: Optional[str] = None,
                  datapoint_complete_path: Optional[str] = None,
                  log_path: Optional[str] = None,
+                 fail_fast: bool = False
                  ):
 
         if os.path.exists(path_config_file):
@@ -37,6 +38,7 @@ class OrcaValidator:
         self.datapoint_translation_only_path = datapoint_translation_only_path
         self.datapoint_complete_path = datapoint_complete_path
         self.log_path = log_path
+        self.fail_fast = fail_fast
 
         dir_check(log_path)
         logging.basicConfig(filename=log_path,
@@ -67,7 +69,7 @@ class OrcaValidator:
 
         self.logger.info('Validation finished.')
 
-    def _validate_once(self, input_path: str, output_path: str, fail_fast: bool = False) -> None:
+    def _validate_once(self, input_path: str, output_path: str) -> None:
         """
         This method checks if all datapoints in the output_path match those in the input_path.
         :param input_path: The path to the input file.
@@ -93,7 +95,7 @@ class OrcaValidator:
                             error_info = f'In line {i}, input {input_path} has {input_datapoint.id}, ' \
                                          f'but output {output_path} has {output_datapoint.id}.'
                             self.logger.error(error_info)
-                            if fail_fast:
+                            if self.fail_fast:
                                 raise OrcaValidationError(error_info)
                     except StopIteration or EOFError:
                         error_info = f'Output {output_path} has {num_datapoints}, which outnumbers input {input_path}.'
