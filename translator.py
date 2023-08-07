@@ -27,11 +27,11 @@ class OrcaTranslator:
                  datapoint_translation_only_path: Optional[str] = None,
                  datapoint_complete_path: Optional[str] = None,
                  log_path: Optional[str] = None,
-                 dataset_type=SupportedDatasetType.Huggingface,
+                 mode: SupportedMode = SupportedMode.Continue,
+                 dataset_type: SupportedDatasetType = SupportedDatasetType.Huggingface,
                  buffer_size=10,
                  num_datapoints_to_process=None,
                  num_workers=4,
-                 mode=SupportedMode.Restart,
                  ):
         # Prefer to use direct constructor arguments over those in the path_config_file
         if os.path.exists(path_config_file):
@@ -57,19 +57,22 @@ class OrcaTranslator:
 
         self.logger.info('OrcaTranslator started.')
 
-        # Log the arguments
-        self.logger.info(f'Logging arguments:')
-        self.logger.info(f'\tpath_config_file: {path_config_file}')
-        self.logger.info(f'\tprompt_config_file: {prompt_config_file}')
-        self.logger.info(f'\tdatapoint_vanilla_path: {datapoint_vanilla_path}')
-        self.logger.info(f'\tdatapoint_translation_only_path: {datapoint_translation_only_path}')
-        self.logger.info(f'\tdatapoint_complete_path: {datapoint_complete_path}')
-        self.logger.info(f'\tlog_path: {log_path}')
-        self.logger.info(f'\tdataset_type: {dataset_type}')
-        self.logger.info(f'\tbuffer_size: {buffer_size}')
-        self.logger.info(f'\tnum_datapoints_to_process: {num_datapoints_to_process}')
-        self.logger.info(f'\tnum_workers: {num_workers}')
-        self.logger.info(f'\tmode: {mode}')
+        # Parse strings to enum objects
+        mode = SupportedMode(mode)
+        dataset_type = SupportedDatasetType(dataset_type)
+
+        self.logger.info(f'Parsing arguments: \n\t'
+                         f'path_config_file: {path_config_file}\n\t'
+                         f'prompt_config_file: {prompt_config_file}\n\t'
+                         f'datapoint_vanilla_path: {datapoint_vanilla_path}\n\t'
+                         f'datapoint_translation_only_path: {datapoint_translation_only_path}\n\t'
+                         f'datapoint_complete_path: {datapoint_complete_path}\n\t'
+                         f'log_path: {log_path}\n\t'
+                         f'mode: {mode}\n\t'
+                         f'dataset_type: {dataset_type}\n\t'
+                         f'buffer_size: {buffer_size}\n\t'
+                         f'num_datapoints_to_process: {num_datapoints_to_process}\n\t'
+                         f'num_workers: {num_workers}\n\t')
 
         self.mode = mode
 
@@ -129,7 +132,7 @@ class OrcaTranslator:
         else:
             existing_datapoints = 0
 
-        if self.mode == SupportedMode.Continue and existing_datapoints:
+        if self.mode == SupportedMode.Continue and existing_datapoints == 0:
             self.logger.warning(f'Starting from datapoint #1 in Continue mode.')
 
         self.logger.info(
