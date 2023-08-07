@@ -2,6 +2,7 @@ import logging
 import os
 from typing import Optional
 
+import fire
 import yaml
 from jsonlines import jsonlines
 
@@ -84,4 +85,5 @@ class OrcaValidator:
                     raise OrcaValidationError(f'Output: {output_path} outnumbers input: {input_path}.')
 
 
-
+if __name__ == '__main__':
+    fire.Fire(OrcaValidator)
