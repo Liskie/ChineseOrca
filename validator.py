@@ -75,10 +75,10 @@ class OrcaValidator:
         """
 
         with jsonlines.open(input_path, 'r') as input_reader, jsonlines.open(output_path, 'r') as output_reader:
-            for output_datapoint in output_reader:
+            for output_datapoint_json in output_reader:
                 try:
-                    input_datapoint: Datapoint = Datapoint.from_json(input_reader.next())
-                    output_datapoint: Datapoint = Datapoint.from_json(output_reader.next())
+                    input_datapoint: Datapoint = Datapoint.from_json(input_reader.read())
+                    output_datapoint: Datapoint = Datapoint.from_json(output_datapoint_json)
                     if input_datapoint.id != output_datapoint.id:
                         raise OrcaValidationError(f'Input: {input_path} and output: {output_path} mismatch on id.')
                 except StopIteration:
