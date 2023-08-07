@@ -79,8 +79,8 @@ class OrcaValidator:
             num_datapoints = sum(1 for _ in output_reader)
 
         with jsonlines.open(input_path, 'r') as input_reader, jsonlines.open(output_path, 'r') as output_reader:
-            with open(input_path.replace('.jsonl', '_ids.txt'), 'r') as input_id_writer, \
-                    open(output_path.replace('.jsonl', '_ids.txt'), 'r') as output_id_writer:
+            with open(input_path.replace('.jsonl', '_ids.txt'), 'w') as input_id_writer, \
+                    open(output_path.replace('.jsonl', '_ids.txt'), 'w') as output_id_writer:
                 for i, output_datapoint_json in rich.progress.track(enumerate(output_reader),
                                                                     description=f'Validating {output_path}:',
                                                                     total=num_datapoints):
