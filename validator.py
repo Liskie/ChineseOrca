@@ -67,7 +67,7 @@ class OrcaValidator:
 
         self.logger.info('Validation finished.')
 
-    def _validate_once(self, input_path: str, output_path: str, ) -> None:
+    def _validate_once(self, input_path: str, output_path: str) -> None:
         """
         This method checks if all datapoints in the output_path match those in the input_path.
         :param input_path: The path to the input file.

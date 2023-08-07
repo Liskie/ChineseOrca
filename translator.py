@@ -115,6 +115,9 @@ class OrcaTranslator:
         else:
             existing_datapoints = 0
 
+        if self.mode == SupportedMode.Continue and existing_datapoints:
+            self.logger.warning(f'Starting from datapoint #1 in Continue mode.')
+
         self.logger.info(
             f'Datapoints #{existing_datapoints + 1} ~ #{existing_datapoints + self.num_datapoints_to_process} '
             f'of a total of {self.num_datapoints_total} datapoints will be loaded '
