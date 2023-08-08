@@ -102,6 +102,8 @@ class OrcaValidator:
                         self.logger.error(error_info)
                         raise OrcaValidationError(error_info)
 
+        print(f'Validation of {input_path} finished with no error.')
+
 
 if __name__ == '__main__':
     fire.Fire(OrcaValidator)

@@ -13,7 +13,7 @@ from jsonlines import jsonlines
 from tenacity import retry, wait_random_exponential, retry_if_result, stop_after_attempt, wait_fixed, before_log
 from tqdm import tqdm
 
-from utils import dir_check, retry_condition
+from utils import dir_check, retry_condition, contains_only_zh_en_num_punct
 from utils.data_buffer import DataBuffer, Datapoint
 from utils.data_structure import SupportedMode, SupportedDatasetType, SupportedRunPhase, SupportedModel, LocaleData
 
@@ -277,14 +277,25 @@ class OrcaTranslator:
             question=self.prompt_config['translate_question']['question'].format(datapoint.en.question),
             system_prompt=self.prompt_config['translate_question']['system_prompt'],
             model=model)
+
         # 2. Rephrase and polish the question
         # question_in = f'The following sentence is translated from English. ' \
         #               f'Please rephrase and polish it so that it sounds more natural, fluent and precise in Chinese. ' \
         #               f'Remember, do not lose any information in the source sentence!\n{question}'
         # system_prompt_in = 'You are a professional proofreader. '
         # question = self.request_model(question=question_in, system_prompt=system_prompt_in, model=model)
+
+        # 3. Clean the translated question
         translate_pattern = re.compile(r'(?s)^.*?(<trnslt>)(.*)(</trnslt>).*?$')
-        datapoint.zh.question = translate_pattern.sub(r'\2', question)
+        question = translate_pattern.sub(r'\2', question)
+        question = question.replace('<trnslt>', '').replace('</trnslt>', '').strip()
+        split_question = question.split('\n')
+        if '中文' in split_question[0] or '翻译' in split_question[0] or '翻译' in question:
+            question = '\n'.join(split_question[1:])
+        if not contains_only_zh_en_num_punct(question):
+            question = '<error> <foreign_lang>'
+
+        datapoint.zh.question = question
         return datapoint
 
     @retry(wait=wait_fixed(60))

@@ -10,6 +10,11 @@ class OrcaSampler:
     def __init__(self,
                  input_file_path: str,
                  sample_file_path: str):
+        """
+        This class samples a given number of lines from a given file.
+        :param input_file_path: This file should be in .jsonl format.
+        :param sample_file_path: This file will be in .json format with indentation=4.
+        """
         self.input_file_path = input_file_path
         self.sample_file_path = sample_file_path
 
@@ -29,6 +34,8 @@ class OrcaSampler:
 
         with open(self.sample_file_path, 'w') as writer:
             json.dump(sampled_lines, writer, indent=4, ensure_ascii=False)
+
+        print(f'Dumped {num} lines to {self.sample_file_path}.')
 
 
 if __name__ == '__main__':
