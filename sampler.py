@@ -18,12 +18,15 @@ class OrcaSampler:
         self.input_file_path = input_file_path
         self.sample_file_path = sample_file_path
 
-    def sample(self, num: int = 100) -> None:
+    def sample(self, num: int = 100, start: int = 0, end: int = -1) -> None:
         # Calculate the number of lines in the file
         with jsonlines.open(self.input_file_path, 'r') as reader:
             num_lines = sum(1 for _ in reader)
 
-        indices = sorted(random.sample(list(range(num_lines)), num))
+        if end == -1:
+            end = num_lines
+
+        indices = sorted(random.sample(list(range(num_lines))[start:end], num))
 
         sampled_lines = []
 
