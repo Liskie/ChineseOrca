@@ -3,7 +3,7 @@ import re
 
 from jsonlines import jsonlines
 
-from utils import SupportedMode
+from .data_structure import SupportedMode
 
 
 def dir_check(directory: str) -> None:
