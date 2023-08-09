@@ -272,6 +272,13 @@ class OrcaTranslator:
             if pair['en'] == datapoint.en.system_prompt:
                 datapoint.zh.system_prompt = pair['zh']
                 break
+
+        # Skip if the question is about foreign languages or translation
+        if not contains_only_zh_en_num_punct(datapoint.en.question) \
+                or not contains_only_zh_en_num_punct(datapoint.en.response):
+            datapoint.zh.question = '<error> <foreign_lang>'
+            return datapoint
+
         # 1. Translate the question
         question = self.request_model(
             question=self.prompt_config['translate_question']['question'].format(datapoint.en.question),
@@ -298,7 +305,7 @@ class OrcaTranslator:
         datapoint.zh.question = question
         return datapoint
 
-    @retry(wait=wait_fixed(60))
+    @retry(wait=wait_fixed(10))
     def generate_responses(self) -> 'OrcaTranslator':
         # Distribute the work to multiple processes
         self.logger.info(f'Distributing work of response generation to {self.num_workers} workers.')
