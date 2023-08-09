@@ -234,7 +234,7 @@ class OrcaTranslator:
                 model=model)
         }
 
-    @retry(wait=wait_fixed(60))
+    @retry(wait=wait_fixed(10))
     def translate_questions(self) -> 'OrcaTranslator':
         # Distribute the work to multiple processes
         self.logger.info(f'Distributing work of question translation to {self.num_workers} workers.')
@@ -244,25 +244,28 @@ class OrcaTranslator:
         datapoint_buffer: DataBuffer = DataBuffer(size=self.buffer_size, logger=self.logger, mode=self.mode)
 
         num_finished_datapoints = 0
-        with Pool(self.num_workers) as pool:
-            with tqdm(total=self.num_datapoints_to_process, desc='Translating questions: ') as pbar:
-                datapoints_vanilla = self.load_datapoints(SupportedRunPhase.QuestionTranslation)
-                for datapoint in pool.imap(translate_question_gpt4, datapoints_vanilla):
-                    pbar.update()
-                    num_finished_datapoints += 1
-                    if int(self.num_datapoints_to_process / 100) == 0:
-                        self.logger.info(f'Translating questions: '
-                                         f'{num_finished_datapoints} / {self.num_datapoints_to_process} '
-                                         f'datapoints finished.')
-                    elif num_finished_datapoints % int(self.num_datapoints_to_process / 100) == 0:
-                        self.logger.info(f'Translating questions: '
-                                         f'{num_finished_datapoints} / {self.num_datapoints_to_process} = '
-                                         f'{num_finished_datapoints / self.num_datapoints_to_process:.0%} '
-                                         f'datapoints finished.')
-                    datapoint_buffer.add(datapoint)
-
-        # Dump the datapoints
-        datapoint_buffer.dump()
+        try:
+            with Pool(self.num_workers) as pool:
+                with tqdm(total=self.num_datapoints_to_process, desc='Translating questions: ') as pbar:
+                    datapoints_vanilla = self.load_datapoints(SupportedRunPhase.QuestionTranslation)
+                    for datapoint in pool.imap(translate_question_gpt4, datapoints_vanilla):
+                        pbar.update()
+                        num_finished_datapoints += 1
+                        if int(self.num_datapoints_to_process / 100) == 0:
+                            self.logger.info(f'Translating questions: '
+                                             f'{num_finished_datapoints} / {self.num_datapoints_to_process} '
+                                             f'datapoints finished.')
+                        elif num_finished_datapoints % int(self.num_datapoints_to_process / 100) == 0:
+                            self.logger.info(f'Translating questions: '
+                                             f'{num_finished_datapoints} / {self.num_datapoints_to_process} = '
+                                             f'{num_finished_datapoints / self.num_datapoints_to_process:.0%} '
+                                             f'datapoints finished.')
+                        datapoint_buffer.add(datapoint)
+        except Exception as e:
+            self.logger.error(f'Error occurred during question translation. Dumping the remaining datapoints.')
+            raise e
+        finally:
+            datapoint_buffer.dump()
         self.logger.info(f'Translation completed.')
         return self
 
@@ -275,7 +278,7 @@ class OrcaTranslator:
 
         # Skip if the question is about foreign languages or translation
         if not contains_only_zh_en_num_punct(datapoint.en.question) \
-                or not contains_only_zh_en_num_punct(datapoint.en.response)\
+                or not contains_only_zh_en_num_punct(datapoint.en.response) \
                 or 'translate' in datapoint.en.question.lower():
             datapoint.zh.question = '<error> <foreign_lang>'
             return datapoint
@@ -325,25 +328,29 @@ class OrcaTranslator:
                                                   mode=self.mode)
 
         num_finished_datapoints = 0
-        with Pool(self.num_workers) as pool:
-            with tqdm(total=self.num_datapoints_to_process, desc='Generating responses: ') as pbar:
-                datapoints_with_translation = self.load_datapoints(SupportedRunPhase.ResponseGeneration)
-                for datapoint in pool.imap(generate_response_gpt4, datapoints_with_translation):
-                    pbar.update()
-                    num_finished_datapoints += 1
-                    if int(self.num_datapoints_to_process / 100) == 0:
-                        self.logger.info(f'Generating responses: '
-                                         f'{num_finished_datapoints} / {self.num_datapoints_to_process} '
-                                         f'datapoints finished.')
-                    elif num_finished_datapoints % int(self.num_datapoints_to_process / 100) == 0:
-                        self.logger.info(f'Generating responses: '
-                                         f'{num_finished_datapoints} / {self.num_datapoints_to_process} = '
-                                         f'{num_finished_datapoints / self.num_datapoints_to_process:.0%} '
-                                         f'datapoints finished.')
-                    datapoint_buffer.add(datapoint)
+        try:
+            with Pool(self.num_workers) as pool:
+                with tqdm(total=self.num_datapoints_to_process, desc='Generating responses: ') as pbar:
+                    datapoints_with_translation = self.load_datapoints(SupportedRunPhase.ResponseGeneration)
+                    for datapoint in pool.imap(generate_response_gpt4, datapoints_with_translation):
+                        pbar.update()
+                        num_finished_datapoints += 1
+                        if int(self.num_datapoints_to_process / 100) == 0:
+                            self.logger.info(f'Generating responses: '
+                                             f'{num_finished_datapoints} / {self.num_datapoints_to_process} '
+                                             f'datapoints finished.')
+                        elif num_finished_datapoints % int(self.num_datapoints_to_process / 100) == 0:
+                            self.logger.info(f'Generating responses: '
+                                             f'{num_finished_datapoints} / {self.num_datapoints_to_process} = '
+                                             f'{num_finished_datapoints / self.num_datapoints_to_process:.0%} '
+                                             f'datapoints finished.')
+                        datapoint_buffer.add(datapoint)
+        except Exception as e:
+            self.logger.error(f'Error occurred during response generation. Dumping the remaining datapoints.')
+            raise e
+        finally:
+            datapoint_buffer.dump()
 
-        # Dump the datapoints
-        datapoint_buffer.dump()
         self.logger.info(f'Generation completed.')
 
         self.logger.info('OrcaTranslator finished.')
