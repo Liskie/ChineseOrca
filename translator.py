@@ -280,6 +280,10 @@ class OrcaTranslator:
             datapoint.zh.question = '<error> <foreign_lang>'
             return datapoint
 
+        if 'punctuat' in datapoint.en.question.lower():
+            datapoint.zh.question = '<error> <lang_specific>'
+            return datapoint
+
         # 1. Translate the question
         question = self.request_model(
             question=self.prompt_config['translate_question']['question'].format(datapoint.en.question),
@@ -302,6 +306,8 @@ class OrcaTranslator:
             question = '\n'.join(split_question[1:])
         if not contains_only_zh_en_num_punct(question):
             question = '<error> <foreign_lang>'
+        if '空格' in question or '大写' in question or '小写' in question:
+            question = '<error> <lang_specific>'
 
         datapoint.zh.question = question
         return datapoint
