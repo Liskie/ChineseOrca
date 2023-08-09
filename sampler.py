@@ -54,7 +54,7 @@ class OrcaSampler:
         with jsonlines.open(self.input_file_path, 'r') as reader:
             for i, line in enumerate(reader):
                 if start <= i < end:
-                    system_prompt2samples[line['system_prompt']].append(line)
+                    system_prompt2samples[line['en']['system_prompt']].append(line)
 
         sampled_lines = []
         for system_prompt, samples in system_prompt2samples.items():
