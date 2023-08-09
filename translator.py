@@ -13,7 +13,7 @@ from jsonlines import jsonlines
 from tenacity import retry, wait_random_exponential, retry_if_result, stop_after_attempt, wait_fixed, before_log
 from tqdm import tqdm
 
-from utils import dir_check, retry_condition, contains_only_zh_en_num_punct
+from utils.functions import dir_check, retry_condition, contains_only_zh_en_num_punct, count_existing_datapoints
 from utils.data_buffer import DataBuffer, Datapoint
 from utils.data_structure import SupportedMode, SupportedDatasetType, SupportedRunPhase, SupportedModel, LocaleData
 
@@ -243,6 +243,7 @@ class OrcaTranslator:
 
         datapoint_buffer: DataBuffer = DataBuffer(size=self.buffer_size, logger=self.logger, mode=self.mode)
 
+        num_existing_datapoints = count_existing_datapoints(mode=self.mode, path=self.datapoint_translation_only_path)
         num_finished_datapoints = 0
         try:
             with Pool(self.num_workers) as pool:
@@ -260,6 +261,8 @@ class OrcaTranslator:
                                              f'{num_finished_datapoints} / {self.num_datapoints_to_process} = '
                                              f'{num_finished_datapoints / self.num_datapoints_to_process:.0%} '
                                              f'datapoints finished.')
+                        self.logger.info(f'There are {num_existing_datapoints + num_finished_datapoints} datapoints '
+                                         f'in {self.datapoint_translation_only_path} now.')
                         datapoint_buffer.add(datapoint)
         except Exception as e:
             self.logger.warning(f'Error occurred during question translation. '
@@ -335,6 +338,8 @@ class OrcaTranslator:
                     datapoints_with_translation = self.load_datapoints(SupportedRunPhase.ResponseGeneration)
                     for datapoint in pool.imap(generate_response_gpt4, datapoints_with_translation):
                         pbar.update()
+                        num_existing_datapoints = count_existing_datapoints(mode=self.mode,
+                                                                            path=self.datapoint_complete_path)
                         num_finished_datapoints += 1
                         if int(self.num_datapoints_to_process / 100) == 0:
                             self.logger.info(f'Generating responses: '
@@ -345,6 +350,8 @@ class OrcaTranslator:
                                              f'{num_finished_datapoints} / {self.num_datapoints_to_process} = '
                                              f'{num_finished_datapoints / self.num_datapoints_to_process:.0%} '
                                              f'datapoints finished.')
+                        self.logger.info(f'There are {num_existing_datapoints + num_finished_datapoints} datapoints '
+                                         f'in {self.datapoint_translation_only_path} now.')
                         datapoint_buffer.add(datapoint)
         except Exception as e:
             self.logger.error(f'Error occurred during response generation. '

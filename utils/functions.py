@@ -1,6 +1,10 @@
 import os
 import re
 
+from jsonlines import jsonlines
+
+from utils import SupportedMode
+
 
 def dir_check(directory: str) -> None:
     # Check if the output directory exists
@@ -21,3 +25,12 @@ def contains_only_zh_en_num_punct(string) -> bool:
     # 如果匹配成功，则字符串只包含中文、英文、数字和标点符号
     # 否则，字符串包含其他字符
     return match is not None
+
+
+def count_existing_datapoints(path: str, mode: SupportedMode) -> int:
+    if mode == SupportedMode.Continue and os.path.exists(path):
+        with jsonlines.open(path, 'r') as reader:
+            existing_datapoints = sum(1 for _ in reader)
+    else:
+        existing_datapoints = 0
+    return existing_datapoints

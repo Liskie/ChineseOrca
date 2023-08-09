@@ -1,7 +1,7 @@
 from jsonlines import jsonlines
 
 from .data_structure import Datapoint, SupportedMode
-from .utils import dir_check
+from .functions import dir_check
 
 
 class DataBuffer:
@@ -16,6 +16,7 @@ class DataBuffer:
         self.dump_path = dump_path
         self.logger = logger
         self.mode = mode
+        self.num_dumped = 0
 
         dir_check(dump_path)
         match self.mode:
@@ -39,6 +40,7 @@ class DataBuffer:
         self.logger.info(f'Dumping {len(self.buffer)} datapoints into {self.dump_path}.')
         with jsonlines.open(self.dump_path, 'a') as writer:
             writer.write_all([datapoint.to_json() for datapoint in self.buffer])
+        self.num_dumped += len(self.buffer)
 
     def __len__(self):
         return len(self.buffer)
