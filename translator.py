@@ -275,7 +275,8 @@ class OrcaTranslator:
 
         # Skip if the question is about foreign languages or translation
         if not contains_only_zh_en_num_punct(datapoint.en.question) \
-                or not contains_only_zh_en_num_punct(datapoint.en.response):
+                or not contains_only_zh_en_num_punct(datapoint.en.response)\
+                or 'translate' in datapoint.en.question.lower():
             datapoint.zh.question = '<error> <foreign_lang>'
             return datapoint
 
