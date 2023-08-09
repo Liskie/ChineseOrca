@@ -39,3 +39,6 @@ class DataBuffer:
         self.logger.info(f'Dumping {len(self.buffer)} datapoints into {self.dump_path}.')
         with jsonlines.open(self.dump_path, 'a') as writer:
             writer.write_all([datapoint.to_json() for datapoint in self.buffer])
+
+    def __len__(self):
+        return len(self.buffer)

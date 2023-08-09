@@ -262,7 +262,8 @@ class OrcaTranslator:
                                              f'datapoints finished.')
                         datapoint_buffer.add(datapoint)
         except Exception as e:
-            self.logger.error(f'Error occurred during question translation. Dumping the remaining datapoints.')
+            self.logger.warning(f'Error occurred during question translation. '
+                                f'Dumping the remaining {len(datapoint_buffer)} datapoints and retrying.')
             raise e
         finally:
             datapoint_buffer.dump()
@@ -346,7 +347,8 @@ class OrcaTranslator:
                                              f'datapoints finished.')
                         datapoint_buffer.add(datapoint)
         except Exception as e:
-            self.logger.error(f'Error occurred during response generation. Dumping the remaining datapoints.')
+            self.logger.error(f'Error occurred during response generation. '
+                              f'Dumping the remaining {len(datapoint_buffer)} datapoints and retrying.')
             raise e
         finally:
             datapoint_buffer.dump()
