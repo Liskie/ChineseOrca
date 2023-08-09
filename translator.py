@@ -256,13 +256,16 @@ class OrcaTranslator:
                             self.logger.info(f'Translating questions: '
                                              f'{num_finished_datapoints} / {self.num_datapoints_to_process} '
                                              f'datapoints finished.')
+                            self.logger.info(
+                                f'There are {num_existing_datapoints + num_finished_datapoints} datapoints '
+                                f'in {self.datapoint_translation_only_path} now.')
                         elif num_finished_datapoints % int(self.num_datapoints_to_process / 100) == 0:
                             self.logger.info(f'Translating questions: '
                                              f'{num_finished_datapoints} / {self.num_datapoints_to_process} = '
                                              f'{num_finished_datapoints / self.num_datapoints_to_process:.0%} '
                                              f'datapoints finished.')
-                        self.logger.info(f'There are {num_existing_datapoints + num_finished_datapoints} datapoints '
-                                         f'in {self.datapoint_translation_only_path} now.')
+                            self.logger.info(f'There are {num_existing_datapoints + num_finished_datapoints} datapoints '
+                                             f'in {self.datapoint_translation_only_path} now.')
                         datapoint_buffer.add(datapoint)
         except Exception as e:
             self.logger.warning(f'Error occurred during question translation. '
@@ -345,13 +348,16 @@ class OrcaTranslator:
                             self.logger.info(f'Generating responses: '
                                              f'{num_finished_datapoints} / {self.num_datapoints_to_process} '
                                              f'datapoints finished.')
+                            self.logger.info(
+                                f'There are {num_existing_datapoints + num_finished_datapoints} datapoints '
+                                f'in {self.datapoint_translation_only_path} now.')
                         elif num_finished_datapoints % int(self.num_datapoints_to_process / 100) == 0:
                             self.logger.info(f'Generating responses: '
                                              f'{num_finished_datapoints} / {self.num_datapoints_to_process} = '
                                              f'{num_finished_datapoints / self.num_datapoints_to_process:.0%} '
                                              f'datapoints finished.')
-                        self.logger.info(f'There are {num_existing_datapoints + num_finished_datapoints} datapoints '
-                                         f'in {self.datapoint_translation_only_path} now.')
+                            self.logger.info(f'There are {num_existing_datapoints + num_finished_datapoints} datapoints '
+                                             f'in {self.datapoint_translation_only_path} now.')
                         datapoint_buffer.add(datapoint)
         except Exception as e:
             self.logger.error(f'Error occurred during response generation. '
