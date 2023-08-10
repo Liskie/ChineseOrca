@@ -382,7 +382,7 @@ class OrcaTranslator:
         datapoint.zh.response = response
         return datapoint
 
-    @retry(wait=wait_random_exponential(min=10, max=60), stop=stop_after_attempt(20),
+    @retry(wait=wait_random_exponential(min=10, max=60), reraise=True,
            retry=retry_if_result(retry_condition))
     def request_model(self, question: str, system_prompt=None, model=SupportedModel.GPT4) -> str:
         match model:
@@ -420,6 +420,10 @@ class OrcaTranslator:
         if 'error' in response_data:
             if response_data['error'] == 'server error':
                 return f'<error> <server_error>'
+            elif response_data['error'] == 'busy':
+                return f'<error> <busy>'
+            if isinstance(response_data['error'], str):
+                print(response_data['error'])
             return f"<error> <{response_data['error']['code']}> {response_data['error']['message']}"
 
         if response_data["choices"][0]['finish_reason'] == 'content_filter':

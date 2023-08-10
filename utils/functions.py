@@ -13,7 +13,9 @@ def dir_check(directory: str) -> None:
 
 
 def retry_condition(response) -> bool:
-    if response.startswith('<error> <429>') or response.startswith('<error> <server_error>'):
+    if response.startswith('<error> <429>') \
+            or response.startswith('<error> <server_error>')\
+            or response.startswith('<error> <busy>'):
         return True
 
 
