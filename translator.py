@@ -334,6 +334,7 @@ class OrcaTranslator:
                                                   logger=self.logger,
                                                   mode=self.mode)
 
+        num_existing_datapoints = count_existing_datapoints(mode=self.mode, path=self.datapoint_complete_path)
         num_finished_datapoints = 0
         try:
             with Pool(self.num_workers) as pool:
@@ -341,8 +342,6 @@ class OrcaTranslator:
                     datapoints_with_translation = self.load_datapoints(SupportedRunPhase.ResponseGeneration)
                     for datapoint in pool.imap(generate_response_gpt4, datapoints_with_translation):
                         pbar.update()
-                        num_existing_datapoints = count_existing_datapoints(mode=self.mode,
-                                                                            path=self.datapoint_complete_path)
                         num_finished_datapoints += 1
                         if int(self.num_datapoints_to_process / 100) == 0:
                             self.logger.info(f'Generating responses: '
