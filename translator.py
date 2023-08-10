@@ -264,11 +264,12 @@ class OrcaTranslator:
                                              f'{num_finished_datapoints} / {self.num_datapoints_to_process} = '
                                              f'{num_finished_datapoints / self.num_datapoints_to_process:.0%} '
                                              f'datapoints finished.')
-                            self.logger.info(f'There are {num_existing_datapoints + num_finished_datapoints} datapoints '
-                                             f'in {self.datapoint_translation_only_path} now.')
+                            self.logger.info(
+                                f'There are {num_existing_datapoints + num_finished_datapoints} datapoints '
+                                f'in {self.datapoint_translation_only_path} now.')
                         datapoint_buffer.add(datapoint)
         except Exception as e:
-            self.logger.warning(f'Error occurred during question translation. '
+            self.logger.warning(f'Exceptions are raised during question translation. '
                                 f'Dumping the remaining {len(datapoint_buffer)} datapoints and retrying.')
             raise e
         finally:
@@ -355,12 +356,13 @@ class OrcaTranslator:
                                              f'{num_finished_datapoints} / {self.num_datapoints_to_process} = '
                                              f'{num_finished_datapoints / self.num_datapoints_to_process:.0%} '
                                              f'datapoints finished.')
-                            self.logger.info(f'There are {num_existing_datapoints + num_finished_datapoints} datapoints '
-                                             f'in {self.datapoint_translation_only_path} now.')
+                            self.logger.info(
+                                f'There are {num_existing_datapoints + num_finished_datapoints} datapoints '
+                                f'in {self.datapoint_translation_only_path} now.')
                         datapoint_buffer.add(datapoint)
         except Exception as e:
-            self.logger.error(f'Error occurred during response generation. '
-                              f'Dumping the remaining {len(datapoint_buffer)} datapoints and retrying.')
+            self.logger.warning(f'Exceptions are raised during response generation. '
+                                f'Dumping the remaining {len(datapoint_buffer)} datapoints and retrying.')
             raise e
         finally:
             datapoint_buffer.dump()
