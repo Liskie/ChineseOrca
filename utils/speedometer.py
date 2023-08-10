@@ -40,7 +40,11 @@ def main(log_interval: int = 10, window_size: int = 10):
 
     # Initialize wandb
     wandb.login(key=key_config['wandb_api_key'])
-    run = wandb.init(project="ChineseOrca")
+    run = wandb.init(
+        project="ChineseOrca",
+        name='Speedometer',
+        resume=True
+    )
 
     previous_line_counts = [0, 0]
     speed_queue = deque()
@@ -55,8 +59,10 @@ def main(log_interval: int = 10, window_size: int = 10):
                 speed_queue, previous_line_counts, current_line_counts, window_size)
 
             # Log results to wandb
-            wandb.log({"Question Translation Speed": question_translation_speed})
-            wandb.log({"Response Generation Speed": response_generation_speed})
+            wandb.log({
+                "Question Translation Speed": question_translation_speed,
+                "Response Generation Speed": response_generation_speed
+            })
 
             previous_line_counts = current_line_counts
 
