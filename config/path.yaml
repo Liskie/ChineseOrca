@@ -1,6 +1,8 @@
 config_paths:
   prompt_config_file:
     'config/prompt.yaml'
+  key_config_file:
+    'config/key.yaml'
 
 data_paths:
   datapoint_vanilla_path:

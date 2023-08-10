@@ -27,20 +27,20 @@ def calculate_moving_average_speed(speed_queue, previous_line_counts, current_li
 
 
 def main(log_interval: int = 10, window_size: int = 10):
-    # Load wandb API key
-    with open('../config/keys.yaml', 'r') as reader:
-        keys_config = yaml.load(reader, Loader=yaml.FullLoader)
+    # Load path config
+    with open('config/path.yaml', 'r') as reader:
+        path_config = yaml.load(reader, Loader=yaml.FullLoader)
 
-    if not keys_config['wandb_api_key']:
-        raise ValueError("Please provide a valid wandb API key in config/keys.yaml")
+    # Load wandb API key
+    with open(path_config['config_paths']['key_config_file'], 'r') as reader:
+        key_config = yaml.load(reader, Loader=yaml.FullLoader)
+
+    if not key_config['wandb_api_key']:
+        raise ValueError("Please provide a valid wandb API key in config/key.yaml")
 
     # Initialize wandb
-    wandb.login(key=keys_config['wandb_api_key'])
+    wandb.login(key=key_config['wandb_api_key'])
     run = wandb.init(project="ChineseOrca")
-
-    # Load datapoint_file_paths
-    with open('../config/path.yaml', 'r') as reader:
-        path_config = yaml.load(reader, Loader=yaml.FullLoader)
 
     previous_line_counts = [0, 0]
     speed_queue = deque()
