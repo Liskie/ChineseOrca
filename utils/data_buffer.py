@@ -1,7 +1,7 @@
 from jsonlines import jsonlines
 
-from utils.data_structure import Datapoint, SupportedMode
-from utils.functions import dir_check
+from data_structure import Datapoint, SupportedMode
+from functions import dir_check
 
 
 class DataBuffer:
