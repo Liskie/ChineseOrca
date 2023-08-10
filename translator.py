@@ -234,7 +234,7 @@ class OrcaTranslator:
                 model=model)
         }
 
-    @retry(wait=wait_fixed(10))
+    @retry(wait=wait_random_exponential(min=10, max=60), stop=stop_after_attempt(10), reraise=True)
     def translate_questions(self) -> 'OrcaTranslator':
         # Distribute the work to multiple processes
         self.logger.info(f'Distributing work of question translation to {self.num_workers} workers.')
@@ -323,7 +323,7 @@ class OrcaTranslator:
         datapoint.zh.question = question
         return datapoint
 
-    @retry(wait=wait_fixed(10))
+    @retry(wait=wait_random_exponential(min=10, max=60), stop=stop_after_attempt(10), reraise=True)
     def generate_responses(self) -> 'OrcaTranslator':
         # Distribute the work to multiple processes
         self.logger.info(f'Distributing work of response generation to {self.num_workers} workers.')
