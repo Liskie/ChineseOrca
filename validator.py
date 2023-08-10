@@ -7,7 +7,8 @@ import rich.progress
 import yaml
 from jsonlines import jsonlines
 
-from utils import dir_check, OrcaValidationError, Datapoint
+from utils.functions import dir_check
+from utils.data_structure import Datapoint, OrcaValidationError
 
 
 class OrcaValidator:
