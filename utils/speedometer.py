@@ -77,7 +77,7 @@ def main(log_interval: int = 60, window_size: int = 10):
             previous_num_complete_datapoints = current_num_complete_datapoints
             previous_time_complete = current_time_complete
 
-            time.sleep(secs=log_interval)
+            time.sleep(log_interval)
 
     except KeyboardInterrupt:
         print("Terminating Speedometer.")
