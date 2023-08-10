@@ -11,7 +11,8 @@ from functions import count_existing_datapoints
 def calculate_speed(current_num_lines, previous_num_lines, current_time, previous_time):
     return (current_num_lines - previous_num_lines) / (current_time - previous_time)
 
-def main(log_interval: int = 60, window_size: int = 10):
+
+def main(log_interval: int = 60, ignore_first: bool = True):
     # Load path config
     with open('config/path.yaml', 'r') as reader:
         path_config = yaml.load(reader, Loader=yaml.FullLoader)
@@ -28,6 +29,7 @@ def main(log_interval: int = 60, window_size: int = 10):
     run = wandb.init(
         project="ChineseOrca",
         name='Speedometer',
+        id='speedometer',
         resume=True
     )
 
@@ -35,6 +37,8 @@ def main(log_interval: int = 60, window_size: int = 10):
     previous_time_translation_only = time.time()
     previous_num_complete_datapoints = 0
     previous_time_complete = time.time()
+
+    is_first = True
 
     try:
         while True:
@@ -50,10 +54,11 @@ def main(log_interval: int = 60, window_size: int = 10):
                 previous_time_translation_only
             )
 
-            wandb.log({
-                "Question Translation Datapoints": current_num_translation_only_datapoints,
-                "Question Translation Speed": speed_question_translation
-            })
+            if not ignore_first or not is_first:
+                wandb.log({
+                    "Question Translation Datapoints": current_num_translation_only_datapoints,
+                    "Question Translation Speed": speed_question_translation
+                })
 
             current_num_complete_datapoints = count_existing_datapoints(
                 (path_config['data_paths']['datapoint_complete_path']))
@@ -67,16 +72,18 @@ def main(log_interval: int = 60, window_size: int = 10):
                 previous_time_complete
             )
 
-            wandb.log({
-                "Response Generation Datapoints": current_num_complete_datapoints,
-                "Response Generation Speed": speed_response_generation
-            })
+            if not ignore_first or not is_first:
+                wandb.log({
+                    "Response Generation Datapoints": current_num_complete_datapoints,
+                    "Response Generation Speed": speed_response_generation
+                })
 
             previous_num_translation_only_datapoints = current_num_translation_only_datapoints
             previous_time_translation_only = current_time_translation_only
             previous_num_complete_datapoints = current_num_complete_datapoints
             previous_time_complete = current_time_complete
 
+            is_first = False
             time.sleep(log_interval)
 
     except KeyboardInterrupt:
