@@ -1,4 +1,6 @@
 import time
+
+import fire
 import wandb
 from collections import deque
 
@@ -66,4 +68,4 @@ def main(log_interval: int = 10, window_size: int = 10):
 
 
 if __name__ == "__main__":
-    main()
+    fire.Fire(main)
