@@ -5,7 +5,7 @@ import wandb
 
 import yaml
 
-from functions import count_existing_datapoints
+from .functions import count_existing_datapoints
 
 
 def calculate_speed(current_num_lines, previous_num_lines, current_time, previous_time):
