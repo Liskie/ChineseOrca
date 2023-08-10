@@ -27,7 +27,7 @@ def contains_only_zh_en_num_punct(string) -> bool:
     return match is not None
 
 
-def count_existing_datapoints(path: str, mode: SupportedMode) -> int:
+def count_existing_datapoints(path: str, mode: SupportedMode = SupportedMode.Continue) -> int:
     if mode == SupportedMode.Continue and os.path.exists(path):
         with jsonlines.open(path, 'r') as reader:
             existing_datapoints = sum(1 for _ in reader)

@@ -6,27 +6,13 @@ from collections import deque
 
 import yaml
 
-
-def count_lines(file_path):
-    with open(file_path, "r") as file:
-        return sum(1 for _ in file)
+from .functions import count_existing_datapoints
 
 
-def calculate_moving_average_speed(speed_queue, previous_line_counts, current_line_counts, window_size: int = 10):
-    speed1 = current_line_counts[0] - previous_line_counts[0]
-    speed2 = current_line_counts[1] - previous_line_counts[1]
+def calculate_speed(current_num_lines, previous_num_lines, current_time, previous_time):
+    return (current_num_lines - previous_num_lines) / (current_time - previous_time)
 
-    speed_queue.append((speed1, speed2))
-    if len(speed_queue) > window_size:
-        speed_queue.popleft()
-
-    avg_speed1 = sum(s[0] for s in speed_queue) / len(speed_queue)
-    avg_speed2 = sum(s[1] for s in speed_queue) / len(speed_queue)
-
-    return avg_speed1, avg_speed2
-
-
-def main(log_interval: int = 10, window_size: int = 10):
+def main(log_interval: int = 60, window_size: int = 10):
     # Load path config
     with open('config/path.yaml', 'r') as reader:
         path_config = yaml.load(reader, Loader=yaml.FullLoader)
@@ -46,27 +32,54 @@ def main(log_interval: int = 10, window_size: int = 10):
         resume=True
     )
 
-    previous_line_counts = [0, 0]
-    speed_queue = deque()
+    previous_num_translation_only_datapoints = 0
+    previous_time_translation_only = time.time()
+    previous_num_complete_datapoints = 0
+    previous_time_complete = time.time()
 
     try:
         while True:
-            current_line_counts = [
-                count_lines(path_config['data_paths']['datapoint_translation_only_path']),
-                count_lines(path_config['data_paths']['datapoint_complete_path'])
-            ]
-            question_translation_speed, response_generation_speed = calculate_moving_average_speed(
-                speed_queue, previous_line_counts, current_line_counts, window_size)
+            current_num_translation_only_datapoints = count_existing_datapoints(
+                path_config['data_paths']['datapoint_translation_only_path'])
 
-            # Log results to wandb
+            current_time_translation_only = time.time()
+
+            speed_question_translation = calculate_speed(
+                current_num_translation_only_datapoints,
+                previous_num_translation_only_datapoints,
+                current_time_translation_only,
+                previous_time_translation_only
+            )
+
             wandb.log({
-                "Question Translation Speed": question_translation_speed,
-                "Response Generation Speed": response_generation_speed
+                "Question Translation Datapoints": current_num_translation_only_datapoints,
+                "Question Translation Speed": speed_question_translation
             })
 
-            previous_line_counts = current_line_counts
+            current_num_complete_datapoints = count_existing_datapoints(
+                (path_config['data_paths']['datapoint_complete_path']))
 
-            time.sleep(log_interval)
+            current_time_complete = time.time()
+
+            speed_response_generation = calculate_speed(
+                current_num_complete_datapoints,
+                previous_num_complete_datapoints,
+                current_time_complete,
+                previous_time_complete
+            )
+
+            wandb.log({
+                "Response Generation Datapoints": current_num_complete_datapoints,
+                "Response Generation Speed": speed_response_generation
+            })
+
+            previous_num_translation_only_datapoints = current_num_translation_only_datapoints
+            previous_time_translation_only = current_time_translation_only
+            previous_num_complete_datapoints = current_num_complete_datapoints
+            previous_time_complete = current_time_complete
+
+            time.sleep(secs=log_interval)
+
     except KeyboardInterrupt:
         print("Terminating Speedometer.")
     finally:
